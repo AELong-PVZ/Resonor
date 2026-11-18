@@ -1,0 +1,3503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="format-detection" content="telephone=no,email=no,address=no">
+<title>Resonor</title>
+<script src="./lame.min.js"></script>
+<style>
+  :root {
+    --bg-base: #0a0b0e;
+    --bg-panel: #12141a;
+    --bg-surface: #1a1d27;
+    --border-color: #2a2e3f;
+    --text-main: #e2e8f0;
+    --text-dim: #7a859c;
+    --accent-blue: #3b82f6; --accent-green: #10b981;
+    --accent-red: #ef4444; --accent-purple: #a855f7;
+    --resizer-color: #2a2e3f;
+  }
+  [data-theme="light"] {
+    --bg-base: #F4EADE;
+    --bg-panel: #FAF7F2;
+    --bg-surface: #FFFFFF;
+    --border-color: #E3D6C5;
+    --text-main: #1f2937;
+    --text-dim: #6b7280;
+    --accent-blue: #2563eb; --accent-green: #059669;
+    --accent-red: #dc2626; --accent-purple: #7e22ce;
+    --resizer-color: #D8CBB8;
+  }
+  * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+  html, body {
+    overscroll-behavior: none;
+    -webkit-touch-callout: none;
+  }
+  input, textarea, #editor, #previewEditor, .hl-content, .preview-hl-content { user-select: text !important; }
+
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg-base); color: var(--text-main);
+    -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+  /* 顶部栏 */
+  .topbar { display: flex; justify-content: space-between; align-items: center; height: 50px; padding: 0 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); flex-shrink: 0; z-index: 100; position: relative; }
+
+  .left-header { display: flex; align-items: center; gap: 10px; }
+  .mobile-menu-btn { display: none; background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 12px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+
+  .logo { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .logo span { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+  .top-actions { display: flex; gap: 10px; align-items: center; overflow-x: auto; }
+
+  .btn { font: inherit; font-size: 13px; font-weight: 500; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn:hover { background: var(--border-color); }
+
+  .theme-switcher { display: flex; background: var(--bg-base); border-radius: 6px; padding: 2px; margin-right: 10px; border: 1px solid var(--border-color); }
+  .theme-btn { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; cursor: pointer; transition: 0.2s; color: var(--text-main); }
+  .theme-btn.active { background: var(--bg-surface); border-color: var(--border-color); }
+
+  .perf-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text-dim); font-size: 13px; font-weight: 600; margin-right: 10px; white-space: nowrap; }
+  .perf-toggle input { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent-purple); }
+  .perf-toggle.active { color: var(--accent-purple); }
+
+  /* 移动端专用抽屉菜单 */
+  .menu-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1999; opacity: 0; transition: opacity 0.3s; pointer-events: auto; }
+  .menu-overlay.show { display: block; opacity: 1; }
+
+  .mobile-drawer { position: fixed; top: 0; bottom: 0; left: 0; width: 260px; background: var(--bg-panel); z-index: 2000; display: flex; flex-direction: column; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 4px 0 20px rgba(0,0,0,0.5); overflow: hidden; }
+  .mobile-drawer.show { transform: translateX(0); }
+
+  .drawer-content { padding-top: max(20px, env(safe-area-inset-top, 20px)); padding-left: max(20px, env(safe-area-inset-left, 20px)); flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+
+  .drawer-title { font-size: 18px; font-weight: bold; color: var(--accent-blue); margin-bottom: 20px; }
+  .drawer-item { padding: 14px 0; font-size: 15px; color: var(--text-main); border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .drawer-item span { color: var(--text-dim); font-size: 12px; }
+
+  .drawer-submenu { position: absolute; inset: 0; background: var(--bg-panel); transform: translateX(100%); transition: transform 0.2s ease; display: flex; flex-direction: column; padding-top: max(20px, env(safe-area-inset-top, 20px)); padding-left: max(20px, env(safe-area-inset-left, 20px)); box-sizing: border-box; z-index: 2010; }
+  .drawer-submenu.show { transform: translateX(0); }
+  .drawer-submenu-title { font-size: 16px; font-weight: bold; color: var(--text-main); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .drawer-submenu-item { padding: 12px 0; font-size: 14px; color: var(--text-main); border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .drawer-submenu-item:active { background: var(--bg-surface); }
+
+  /* 核心布局 */
+  .workspace { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 50px - 40px); position: relative; }
+  .mixer-panel { width: 260px; background: var(--bg-panel); display: flex; flex-direction: column; flex-shrink: 0; min-width: 10px; z-index: 10; }
+  .track-panel { width: 220px; background: var(--bg-panel); display: flex; flex-direction: column; flex-shrink: 0; min-width: 10px; z-index: 10; }
+  .resizer { width: 4px; background: var(--resizer-color); cursor: col-resize; flex-shrink: 0; transition: background 0.1s; z-index: 100; }
+  .resizer:hover, .resizer.active { background: var(--text-dim); }
+  .main-stage { flex: 1; display: flex; flex-direction: column; background: var(--bg-base); padding: 16px; gap: 16px; overflow: hidden; min-width: 200px; position: relative; z-index: 1;}
+
+  .panel-title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; padding: 16px 16px 8px 16px; display: flex; justify-content: space-between; align-items: center; cursor: default; }
+
+  .mixer-list { flex: 1; overflow-y: auto; padding: 0 16px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .mixer-list::-webkit-scrollbar { width: 6px; }
+  .mixer-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+  .track-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+  .track-item:hover { border-color: var(--text-dim); }
+  .track-item.selected { border-color: var(--accent-blue); background: var(--bg-base); }
+
+  /* 混音台推子组 */
+  .fader-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .fader-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); font-weight: 600; }
+  .fader { -webkit-appearance: none; width: 100%; height: 6px; background: var(--border-color); border-radius: 3px; outline: none; cursor: pointer; }
+  .fader::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: var(--text-main); cursor: grab; transition: transform 0.1s; }
+  .fader::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.2); }
+  .mini-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; cursor: pointer; color: var(--text-dim); }
+  .mini-toggle input { cursor: pointer; margin: 0; }
+
+  .status-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4a5468; flex: none; }
+  .status-dot.ready { background: var(--accent-green); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+  .status-dot.error { background: var(--accent-red); }
+  .status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  .custom-select { position: relative; width: 100%; user-select: none; }
+  .select-trigger { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+  .select-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; max-height: 250px; overflow-y: auto; z-index: 100; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .select-options.show { display: block; }
+  .search-wrap { padding: 8px; position: sticky; top: 0; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); z-index: 2; }
+  .search-input { width: 100%; padding: 6px 10px; font-size: 12px; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; outline: none; }
+  .option-group { padding: 6px 12px; font-size: 11px; color: var(--text-dim); background: var(--bg-base); font-weight: bold; position: sticky; top: 42px; z-index: 1; }
+  .option-item { padding: 6px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; }
+  .option-item:hover { background: var(--bg-surface); }
+  .option-item.selected { background: var(--bg-surface); color: var(--accent-blue); }
+
+  .transport-panel { display: flex; align-items: center; gap: 16px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 16px; flex-shrink: 0; flex-wrap: wrap; }
+  .transport-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .transport-group.divider { padding-left: 16px; border-left: 1px solid var(--border-color); }
+  .transport-panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); font-weight: 600; }
+  input[type=number] { font: inherit; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; outline: none; width: 60px; }
+  .action-btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 6px; padding: 8px 20px; cursor: pointer; border: none; display: flex; align-items: center; gap: 6px; }
+  #playBtn { background: var(--accent-blue); color: #fff; }
+  #stopBtn { background: var(--bg-surface); color: var(--text-main); }
+  .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .metronome-toggle, .bpm-x4-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text-dim); font-size: 13px; font-weight: 600; }
+  .metronome-toggle.active, .bpm-x4-toggle.active { color: var(--accent-green); }
+  .master-vol { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+  .master-vol-slider { -webkit-appearance: none; width: 90px; height: 6px; background: var(--bg-base); border-radius: 3px; outline: none; cursor: pointer; }
+  .master-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: var(--accent-blue); }
+
+  .editor-wrap { position: relative; flex: 1; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-base); display: flex; flex-direction: column; overflow: hidden; }
+  .hl-layer { position: absolute; inset: 0; overflow-y: auto; pointer-events: none; opacity: 1; z-index: 0; }
+
+  /* 字体优化：加粗并使用等宽字体 */
+  #editor, .hl-content { font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, "Courier New", monospace; font-size: 16px; line-height: 28px; padding: 16px; border: none; margin: 0; white-space: pre-wrap; word-break: break-all; font-weight: 700; }
+  #editor { position: relative; z-index: 1; display: block; width: 100%; height: 100%; flex: 1; resize: none; background: transparent; caret-color: var(--accent-blue); outline: none; color: transparent !important; -webkit-text-fill-color: transparent !important; font-weight: 700; }
+
+  /* 极速打字补丁：打字瞬间显示纯文本，隐藏高亮层，消除视觉延迟 */
+  .editor-wrap.typing #editor {
+    color: var(--text-main) !important;
+    -webkit-text-fill-color: var(--text-main) !important;
+  }
+  .editor-wrap.typing .hl-layer {
+    opacity: 0;
+  }
+
+  .bottombar { height: 40px; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; z-index: 10;}
+  .time-display { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; color: var(--text-dim); min-width: 50px; text-align: center; font-weight: 600; }
+  input[type=range].progress-bar { -webkit-appearance: none; flex: 1; height: 6px; background: var(--bg-surface); border-radius: 3px; outline: none; cursor: pointer; }
+  input[type=range].progress-bar::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: var(--text-main); }
+
+  .deco-solid { text-decoration: underline solid; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .vel-marker { color: var(--text-main); font-weight: 700; }
+
+  /* 弹窗部分 */
+  .preview-modal { position: fixed; inset: 0; background: var(--bg-base); z-index: 2000; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.3s, background 0.2s; }
+  .preview-modal.show { opacity: 1; pointer-events: auto; }
+  .preview-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid var(--border-color); background: var(--bg-panel); }
+  .preview-header h2 { margin: 0; font-size: 20px; color: var(--accent-purple); display: flex; align-items: center; gap: 10px; }
+  .preview-content-wrap { position: relative; flex: 1; overflow: hidden; display: flex; background: var(--bg-base); }
+
+  /* 防闪烁 */
+  .preview-hl-layer {
+    position: absolute; inset: 0; overflow-y: auto; pointer-events: none; opacity: 1; z-index: 0;
+    will-change: transform, contents;
+    transform: translateZ(0);
+  }
+
+  /* 预览字体优化 */
+  #previewEditor, .preview-hl-content { font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, "Courier New", monospace; font-size: 36px; line-height: 72px; padding: 40px; border: none; margin: 0; white-space: pre-wrap; word-break: break-all; font-weight: 700; }
+  
+  #previewEditor { 
+    position: relative; z-index: 1; display: block; width: 100%; height: 100%; flex: 1; resize: none; background: transparent; 
+    outline: none; font-weight: 700;
+    color: transparent !important; 
+    -webkit-text-fill-color: transparent !important; 
+    caret-color: var(--accent-blue) !important;
+    text-shadow: none;
+  }
+  #previewEditor.playing-locked { pointer-events: none; caret-color: transparent !important; }
+  .preview-footer { padding: 20px 40px; border-top: 1px solid var(--border-color); background: var(--bg-panel); display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+
+  /* 防闪烁 */
+  .tok { display: inline; padding: 0; margin: 0; border-radius: 6px; }
+  .tok.dim, .tok.active { transition: opacity .07s linear, transform .07s ease-out; }
+  .tok.dim { opacity: .15; }
+  .tok.active { opacity: 1; background: var(--bg-surface); text-shadow: 0 0 30px currentColor; transform: scale(1.1); border-bottom: none; }
+  .placeholder { color: var(--text-dim); font-size: 18px; }
+
+  /* 自定义弹窗 */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 3000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal-content { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 640px; max-height: 85vh; overflow-y: auto; padding: 24px; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: translateY(20px); transition: transform 0.2s ease; }
+  .modal-overlay.show .modal-content { transform: translateY(0); }
+  .close-btn { position: absolute; top: 16px; right: 16px; background: transparent; border: none; color: var(--text-dim); font-size: 24px; cursor: pointer; }
+  .modal-content h3 { font-size: 18px; margin: 0 0 20px 0; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+  .modal-content h4 { font-size: 14px; margin: 20px 0 10px 0; color: var(--text-dim); }
+  .modal-content p, .modal-content ul { font-size: 13.5px; line-height: 1.7; color: var(--text-dim); }
+  .modal-content code { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 6px; color: var(--accent-blue); font-family: monospace; }
+  .drum-table { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .drum-item { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; }
+  .drum-item span:first-child { color: var(--accent-blue); font-weight: bold; font-family: monospace; }
+
+  /* 全息说明书面板 */
+  .help-book-panel {
+    border: 1px solid var(--border-color);
+    background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-base) 100%);
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    position: relative;
+    overflow-y: auto;
+  }
+
+  .help-book-panel::-webkit-scrollbar,
+  .modal-content::-webkit-scrollbar {
+    display: none;
+  }
+  .help-book-panel, .modal-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* 说明书电子书样式 */
+  .guide-cover { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 420px; text-align: center; user-select: none; background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%); }
+  .guide-cover h1 { font-size: 36px; color: var(--accent-blue); letter-spacing: 3px; margin: 0 0 10px 0; text-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+  .guide-cover p { font-size: 18px; color: var(--text-main); margin: 0 0 50px 0; letter-spacing: 2px; font-weight: 600; }
+  .guide-start-hint { font-size: 15px; color: var(--accent-green); font-weight: bold; animation: pulse 2s infinite; letter-spacing: 1px; }
+  .guide-editor { position: absolute; bottom: 20px; right: 24px; font-size: 12px; color: var(--text-dim); letter-spacing: 1px; }
+
+  .guide-toc { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+  .guide-toc-item { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+  .guide-toc-item:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+  .guide-page h3 { margin-bottom: 15px; }
+  .guide-page h4 { color: var(--accent-blue); font-size: 15px; margin: 20px 0 10px 0; }
+  .guide-page p, .guide-page li { font-size: 14px; line-height: 1.8; color: var(--text-main); }
+  .guide-page ul { padding-left: 20px; }
+  .guide-back-btn { background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; margin-bottom: 20px; width: fit-content; }
+  .guide-back-btn:hover { background: var(--border-color); }
+
+  /* 虚拟悬浮键盘 */
+  .vk-wrapper { position: fixed; bottom: 50px; left: 50%; transform: translate(-50%, 100%); opacity: 0; pointer-events: none; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s; z-index: 5000; }
+  .vk-wrapper.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  .vk-wrapper.dragged { transform: none; transition: opacity 0.25s ease; }
+  .virtual-keyboard { transform-origin: top left; transform: scale(1); background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; user-select: none; padding: 4px; min-width: 320px; touch-action: none; }
+  .vk-header { display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); padding: 4px 8px; border-radius: 6px 6px 0 0; cursor: grab; border-bottom: 1px solid var(--border-color); }
+  .vk-header:active { cursor: grabbing; }
+  .vk-title { font-size: 12px; color: var(--text-dim); font-weight: bold; }
+  .vk-controls { display: flex; gap: 6px; }
+  .vk-controls button { background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; cursor: pointer; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-size: 16px; line-height: 1; }
+  .vk-body { display: flex; flex-direction: column; gap: 4px; padding: 8px 4px 4px 4px; }
+  .vk-row { display: flex; gap: 4px; }
+  .vk-key { flex: 1; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 0; font-size: 16px; font-weight: bold; text-align: center; cursor: pointer; transition: all 0.1s; }
+  .vk-key:active { background: var(--border-color); transform: scale(0.95); }
+  .vk-key.special { color: var(--accent-blue); font-size: 14px; }
+  .vk-key.del { color: var(--accent-red); }
+  .vk-spacer { flex: 1; }
+
+  /* Android 横屏强制样式 */
+  #newBtn, #loadBtn, #saveBtn, #exportWavBtn, #exportMp3Btn, #openHelpBtn, #openPreviewBtn { display: none !important; }
+
+  .topbar { height: 36px; padding: 0 10px; padding-left: max(10px, env(safe-area-inset-left, 10px)); }
+  .logo span { display: none; }
+  .logo { font-size: 14px; }
+  .perf-toggle { display: none !important; }
+  .mobile-menu-btn { display: flex; }
+
+  .workspace { height: calc(100vh - 36px - 32px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+
+  .mixer-panel { width: 190px; }
+  .track-panel { width: 160px; }
+  .main-stage { padding: 4px; gap: 4px; }
+
+  .resizer { width: 14px; background: var(--border-color); touch-action: none; }
+
+  .transport-panel { padding: 4px 8px; gap: 8px; flex-wrap: nowrap; overflow-x: auto; }
+  .action-btn { padding: 6px 10px; font-size: 12px; }
+  .master-vol-slider { width: 60px; }
+  .bottombar { height: 32px; padding: 0 10px; padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  .panel-title { font-size: 10px; padding: 8px 8px 4px 8px; }
+  .mixer-list { padding: 0 8px 8px 8px; gap: 4px; }
+  .fader-group { margin-bottom: 6px; }
+  .fader-label { font-size: 10px; }
+  .status-bar { padding: 0 8px !important; font-size: 10px; }
+  .track-item { padding: 6px 8px; font-size: 11px; }
+  #editor, .hl-content { padding: 8px; font-size: 13px; line-height: 22px; }
+
+  /* 竖屏兜底遮罩 */
+  .orientation-guard {
+    position: fixed; inset: 0; background: var(--bg-base);
+    z-index: 99999; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+    color: var(--text-main);
+  }
+  .orientation-guard.show { display: flex; }
+  .orientation-guard .og-icon { font-size: 72px; animation: rotateHint 2.4s ease-in-out infinite; }
+  .orientation-guard .og-text { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+  .orientation-guard .og-sub { font-size: 13px; color: var(--text-dim); }
+  @keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+
+  .save-as-input {
+    width: 100%;
+    padding: 12px;
+    background: var(--bg-base);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .save-as-input:focus {
+    border-color: var(--accent-blue);
+  }
+</style>
+</head>
+<body data-theme="dark">
+  <header class="topbar">
+    <div class="left-header">
+      <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+      <div class="logo">🎹 Resonor <span>v0.1.0</span></div>
+    </div>
+
+    <div class="top-actions">
+      <div class="theme-switcher">
+        <button class="theme-btn" data-theme-val="light" title="浅色">☀️</button>
+        <button class="theme-btn" data-theme-val="system" title="跟随系统">💻</button>
+        <button class="theme-btn" data-theme-val="dark" title="深色">🌙</button>
+      </div>
+      <label class="perf-toggle" id="perfToggleWrap"><input type="checkbox" id="perfModeCheck"> 极速打字</label>
+      <button class="btn" id="openPreviewBtn">🎬 专注预览</button>
+      <button class="btn" id="newBtn">📄 新建</button>
+      <button class="btn" id="loadBtn">📥 导入</button>
+      <button class="btn" id="saveBtn">📤 导出</button>
+      <button class="btn" id="exportWavBtn">💾 导出 WAV</button>
+      <button class="btn" id="exportMp3Btn">🎵 导出 MP3</button>
+      <button class="btn" id="openHelpBtn">💡 说明书</button>
+    </div>
+  </header>
+
+  <!-- 移动端抽屉菜单 -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+  <div class="mobile-drawer" id="mobileDrawer">
+    <div class="drawer-content">
+      <div class="drawer-title">Resonor 菜单</div>
+      <div class="drawer-item" data-submenu="fileSub">文件 <span>▶</span></div>
+      <div class="drawer-item" data-submenu="editSub">编辑 <span>▶</span></div>
+      <div class="drawer-item" data-submenu="viewSub">视图 <span>▶</span></div>
+      <div class="drawer-item" data-submenu="helpSub">帮助 <span>▶</span></div>
+    </div>
+
+    <!-- 二级子菜单 -->
+    <div class="drawer-submenu" id="fileSub">
+      <div class="drawer-submenu-title" data-submenu-close>◀ 文件</div>
+      <div class="drawer-submenu-item" data-action="newBtn">新建</div>
+      <div class="drawer-submenu-item" data-action="loadBtn">打开</div>
+      <div class="drawer-submenu-item" data-action="saveBtn">保存</div>
+      <div class="drawer-submenu-item" data-cmd="save-as">另存为...</div>
+      <div class="drawer-submenu-item" data-action="exportWavBtn">导出 WAV</div>
+      <div class="drawer-submenu-item" data-action="exportMp3Btn">导出 MP3</div>
+    </div>
+
+    <div class="drawer-submenu" id="editSub">
+      <div class="drawer-submenu-title" data-submenu-close>◀ 编辑</div>
+      <div class="drawer-submenu-item" data-exec="undo">撤销</div>
+      <div class="drawer-submenu-item" data-exec="redo">重做</div>
+      <div class="drawer-submenu-item" data-exec="cut">剪切</div>
+      <div class="drawer-submenu-item" data-exec="copy">复制</div>
+      <div class="drawer-submenu-item" data-exec="paste">粘贴</div>
+      <div class="drawer-submenu-item" data-exec="selectAll">全选</div>
+    </div>
+
+    <div class="drawer-submenu" id="viewSub">
+      <div class="drawer-submenu-title" data-submenu-close>◀ 视图</div>
+      <div class="drawer-submenu-item" data-action="openPreviewBtn">🎬 专注预览</div>
+      <div class="drawer-submenu-item" data-toggle="perf">⚡ 极速打字 <span id="perfStateLabel" style="color: var(--text-dim); font-size: 12px;">关</span></div>
+      <div class="drawer-submenu-item" data-reload>重新加载</div>
+      <div class="drawer-submenu-item" data-reload>强制重新加载</div>
+    </div>
+
+    <div class="drawer-submenu" id="helpSub">
+      <div class="drawer-submenu-title" data-submenu-close>◀ 帮助</div>
+      <div class="drawer-submenu-item" data-action="openHelpBtn">使用指南</div>
+      <div class="drawer-submenu-item" data-action="openAboutBtn">关于 Resonor</div>
+    </div>
+  </div>
+
+  <!-- 隐藏的触发按钮 -->
+  <button id="openAboutBtn" style="display:none;"></button>
+  <input type="file" id="projectInput" accept=".reson,.json,.txt" style="display: none;">
+
+  <div class="workspace">
+    <aside class="mixer-panel">
+      <div class="panel-title">混音台 (Mixer)</div>
+      <div style="padding: 0 16px;">
+        <div class="status-bar" id="mixerStatus">
+          <span class="status-dot" id="statusDot"></span><span id="statusText">正在检查音色库…</span>
+        </div>
+        <div id="fileRow" style="display: none;">
+          <input type="file" id="sfFileInput" accept=".sf2,.sf3" style="font-size:12px; margin-bottom:8px; color:var(--text-dim);">
+          <button class="btn" id="clearCacheBtn" style="font-size:11px; padding:4px 10px;">清除缓存</button>
+        </div>
+      </div>
+
+      <div class="mixer-list" id="mixerControls" style="padding-top: 10px;">
+        <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0;">
+          请先在音轨列表<br>选中一个乐器
+        </div>
+      </div>
+    </aside>
+
+    <div class="resizer" id="resizerMixer"></div>
+
+    <aside class="track-panel">
+      <div class="panel-title">音轨列表 (Tracks)</div>
+      <div style="padding: 0 16px 16px 16px;">
+        <div class="custom-select" id="customSelect">
+          <div class="select-trigger" id="selectTrigger"></div>
+          <div class="select-options" id="selectOptions">
+            <div class="search-wrap"><input type="text" class="search-input" id="instSearch" placeholder="搜索乐器..."></div>
+            <div id="optionsList"></div>
+          </div>
+        </div>
+      </div>
+      <div class="mixer-list" id="trackList">
+        <div style="font-size: 13px; color: var(--text-dim); text-align: center; padding: 20px 0;" id="trackEmpty">还没有输入音符</div>
+      </div>
+    </aside>
+
+    <div class="resizer" id="resizerTrack"></div>
+
+    <main class="main-stage">
+      <div class="transport-panel">
+        <div class="transport-group">
+          <label>BPM <input type="number" id="bpm" min="20" max="1000" step="1" value="132"></label>
+          <label class="bpm-x4-toggle active" id="bpmX4Toggle"><input type="checkbox" id="bpmX4Check" checked> ×4 兼容</label>
+          <label class="metronome-toggle" id="metronomeToggle"><input type="checkbox" id="metronomeCheck"> 节拍器</label>
+        </div>
+        <div class="transport-group divider">
+          <button class="action-btn" id="playBtn" disabled>▶ 播放</button>
+          <button class="action-btn" id="stopBtn" disabled>■ 停止</button>
+        </div>
+        <div class="transport-group divider" style="margin-left: auto;">
+          <div class="master-vol">主音量 <input type="range" id="masterVol" class="master-vol-slider" min="0" max="1" step="0.01" value="0.8"></div>
+        </div>
+      </div>
+
+      <div class="editor-wrap" id="editorWrap">
+        <div class="hl-layer" id="hlLayer"><div class="hl-content" id="hlContent"></div></div>
+        <textarea id="editor" spellcheck="false" inputmode="none" placeholder="输入简谱… 力度 ^[1-127]。"></textarea>
+      </div>
+    </main>
+  </div>
+
+  <footer class="bottombar">
+    <span class="time-display" id="currentTime">00:00</span>
+    <input type="range" class="progress-bar" id="progressBar" min="0" max="100" value="0" step="1" disabled>
+    <span class="time-display" id="totalTime">00:00</span>
+  </footer>
+
+  <!-- 虚拟悬浮键盘 -->
+  <div class="vk-wrapper" id="vkWrap">
+    <div class="virtual-keyboard" id="virtualKeyboard">
+      <div class="vk-header" id="vkDragHandle">
+        <span class="vk-title">虚拟键盘</span>
+        <div class="vk-controls">
+          <button data-vk-action="zoom-in">+</button>
+          <button data-vk-action="zoom-out">-</button>
+          <button data-vk-action="close">×</button>
+        </div>
+      </div>
+      <div class="vk-body" style="display: flex; flex-direction: row; align-items: stretch; gap: 6px; padding: 8px 4px 4px 4px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+          <div class="vk-row">
+            <div class="vk-key" data-key="1">1</div>
+            <div class="vk-key" data-key="2">2</div>
+            <div class="vk-key" data-key="3">3</div>
+            <div class="vk-key" data-key="4">4</div>
+            <div class="vk-key" data-key="5">5</div>
+            <div class="vk-key" data-key="6">6</div>
+            <div class="vk-key" data-key="7">7</div>
+            <div class="vk-key" data-key="8">8</div>
+          </div>
+          <div class="vk-row">
+            <div class="vk-key" data-key="9">9</div>
+            <div class="vk-key" data-key="0">0</div>
+            <div class="vk-key" data-key=".">.</div>
+            <div class="vk-key" data-key="+">+</div>
+            <div class="vk-key" data-key="-">-</div>
+            <div class="vk-key special" data-key="|">|</div>
+          </div>
+          <div class="vk-row">
+            <div class="vk-key special" data-key="copy">C</div>
+            <div class="vk-key special" data-key="paste">V</div>
+            <div class="vk-key special" data-key="<">&lt;</div>
+            <div class="vk-key special" data-key=">">&gt;</div>
+            <div class="vk-key del" data-key="退格" style="flex: 2;">退格</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px; width: 55px;">
+          <div class="vk-key special" data-key="()" style="flex: 1; display: flex; align-items: center; justify-content: center; font-size: 18px;">()</div>
+          <div class="vk-key special" data-key="^[]" style="flex: 1; display: flex; align-items: center; justify-content: center; font-size: 14px;">^[]</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-modal" id="previewModal">
+    <div class="preview-header"><h2>🎬 专注预览舞台</h2><button class="btn" id="closePreviewBtn">✕ 关闭</button></div>
+    <div class="preview-content-wrap">
+      <div class="preview-hl-layer" id="previewHlLayer"><div class="preview-hl-content" id="previewHlContent"></div></div>
+      <textarea id="previewEditor" spellcheck="false" inputmode="none" placeholder="直接输入音符…"></textarea>
+    </div>
+    <div class="preview-footer">
+      <button class="action-btn" id="previewPlayBtn">▶ 播放</button>
+      <button class="action-btn" id="previewStopBtn">■ 停止</button>
+      <span class="time-display" id="previewCurTime">00:00</span>
+      <input type="range" class="progress-bar" id="previewProgress" min="0" max="100" value="0" step="1" disabled>
+      <span class="time-display" id="previewTotalTime">00:00</span>
+    </div>
+  </div>
+
+  <!-- 说明书弹窗 -->
+  <div class="modal-overlay" id="helpModal">
+    <div class="modal-content help-book-panel" style="max-width: 680px;">
+      <button class="close-btn" id="closeHelpBtn">×</button>
+
+      <div id="helpCover" class="guide-cover" data-help-page="helpToc" style="cursor: pointer;">
+        <h1>Resonor</h1>
+        <p>使用指南</p>
+        <div class="guide-start-hint">&gt; 点击任意位置开始阅读 &lt;</div>
+        <div class="guide-editor">编者：DeepSeek</div>
+      </div>
+
+      <div id="helpToc" class="guide-page" style="display: none;">
+        <h3>📖 目录</h3>
+        <div class="guide-toc">
+          <div class="guide-toc-item" data-help-page="helpSyntax">1. 基础语法与指令 <span>▶</span></div>
+          <div class="guide-toc-item" data-help-page="helpOperation">2. 软件操作详解 <span>▶</span></div>
+          <div class="guide-toc-item" data-help-page="helpTheory">3. 创作与编曲 <span>▶</span></div>
+        </div>
+      </div>
+
+      <div id="helpSyntax" class="guide-page" style="display: none;">
+        <div class="guide-back-btn" data-help-page="helpToc">◀ 返回目录</div>
+        <h3>1. 基础语法与指令</h3>
+        <p>Resonor 采用极其极简的纯文本记谱法，直接输入即可发声。</p>
+
+        <h4>音符与休止</h4>
+        <ul>
+          <li><b>基本音符：</b> <code>1</code> 到 <code>7</code> 代表 do, re, mi, fa, sol, la, si。连续输入 <code>123</code> 代表三拍。</li>
+          <li><b>休止符：</b> <code>.</code>（英文句号）代表空拍。例如 <code>1.2</code> 代表第一拍发声，第二拍空，第三拍发声。</li>
+        </ul>
+
+        <h4>八度控制</h4>
+        <ul>
+          <li>在数字前加 <code>+</code> 升高一个八度，加 <code>-</code> 降低一个八度。可以叠加使用。</li>
+          <li>例如：<code>+1</code> 是高音 do，<code>++1</code> 是倍高音 do，<code>-5</code> 是低音 sol。</li>
+        </ul>
+
+        <h4>和弦与连音</h4>
+        <ul>
+          <li>用括号 <code>()</code> 将音符括起来，代表同时发声（和弦），且自动占一拍。</li>
+          <li>例如：<code>(135)</code> 代表 1、3、5 三个音同时响。</li>
+        </ul>
+
+        <h4>力度控制（动态）</h4>
+        <ul>
+          <li>音符后紧跟 <code>^[1-127]</code> 即可指定发声力度（MIDI 力度）。</li>
+          <li>例如：<code>1^[127]</code> 是爆音强度的 do，<code>1^[20]</code> 是极弱的 do。</li>
+          <li>不加标记时，默认力度为 90。</li>
+          <li>若标记和弦整体力度，写在括号外，如 <code>(135)^[100]</code>。</li>
+        </ul>
+
+        <h4>🥁 专属架子鼓映射</h4>
+        <p>当音色选为“架子鼓”时，数字映射会发生改变：</p>
+        <div class="drum-table">
+          <div class="drum-item"><span>1</span><span>底鼓 (Kick)</span></div>
+          <div class="drum-item"><span>2</span><span>军鼓 (Snare)</span></div>
+          <div class="drum-item"><span>3</span><span>闭合踩镲 (Hi-hat)</span></div>
+          <div class="drum-item"><span>4</span><span>开踩镲 (Open Hat)</span></div>
+          <div class="drum-item"><span>5</span><span>中嗵鼓 (Mid Tom)</span></div>
+          <div class="drum-item"><span>6</span><span>落地嗵鼓 (Floor Tom)</span></div>
+          <div class="drum-item"><span>7</span><span>强音镲 (Crash)</span></div>
+        </div>
+      </div>
+
+      <div id="helpOperation" class="guide-page" style="display: none;">
+        <div class="guide-back-btn" data-help-page="helpToc">◀ 返回目录</div>
+        <h3>2. 软件操作详解</h3>
+
+        <h4>🎛️ 顶部控制栏</h4>
+        <ul>
+          <li><b>主题切换：</b> 切换浅色/深色模式，或跟随系统。</li>
+          <li><b>极速打字：</b> 开启后，输入长文本时会延迟渲染高亮，大幅降低手机卡顿。可从左上角菜单 → 视图 → 极速打字切换。</li>
+          <li><b>BPM (速度)：</b> 控制每分钟的拍数。数值越大，播放越快。</li>
+          <li><b>×4 兼容：</b> 解决某些老曲谱的 BPM 算法差异，默认开启即可。</li>
+          <li><b>节拍器：</b> 播放时伴随“哒哒”声，重拍在第一拍。</li>
+          <li><b>主音量：</b> 控制整个软件的总输出音量。</li>
+        </ul>
+
+        <h4>⌨️ 虚拟悬浮键盘</h4>
+        <ul>
+          <li><b>开启与关闭：</b> 点击输入框即可弹出。点击键盘右上角的 <code>×</code> 关闭，点击 <code>+</code> / <code>-</code> 缩放大小。</li>
+          <li><b>拖拽：</b> 按住键盘顶部的“虚拟键盘”文字区域，可以随意拖动位置。如果拖出屏幕外，松手会自动吸附回边缘。</li>
+          <li><b>C / V：</b> 复制选中的文本 / 粘贴文本（无需调用手机系统键盘）。</li>
+          <li><b>&lt; / &gt;：</b> 将光标向左 / 向右移动一个字符。</li>
+          <li><b>() / ^[]：</b> 快速输入括号和力度标记，光标会自动居中，方便你直接填入内容。</li>
+          <li><b>|：</b> 小节线，用于视觉上划分拍子，不影响发声。</li>
+        </ul>
+
+        <h4>🎚️ 混音台 (Mixer)</h4>
+        <p>在左侧列表选中一个乐器后，这里会出现它的专属推子：</p>
+        <ul>
+          <li><b>音量：</b> 控制该乐器的响度。</li>
+          <li><b>声像 (Pan)：</b> 控制声音从左边喇叭还是右边喇叭出。勾选“自动”后，高音会自动偏右，低音偏左，模拟真实交响乐队的摆位。</li>
+          <li><b>混响 (Reverb)：</b> 模拟音乐厅的空间回音。</li>
+          <li><b>合唱 (Chorus)：</b> 制造类似多件乐器齐奏的宽阔感。</li>
+          <li><b>亮度 (Bright)：</b> 控制高频。数值越大，声音越亮、越尖锐。</li>
+          <li><b>共振 (Resonance)：</b> 强调声音的特定频段，增加金属感或厚度。</li>
+        </ul>
+
+        <h4>🎵 音轨列表 (Tracks)</h4>
+        <ul>
+          <li>这里会列出你当前乐谱中用到的所有乐器。</li>
+          <li>你可以为不同的音符分配不同的乐器（例如第一拍用钢琴，第二拍用鼓）。</li>
+          <li>点击列表上方的下拉框，可以搜索并随时更换当前选中的乐器。</li>
+        </ul>
+
+        <h4>🎬 专注预览与导出</h4>
+        <ul>
+          <li><b>专注预览：</b> 隐藏所有编辑界面，全屏大字显示乐谱，并伴随光标跳动，适合用来检查。可从左上角菜单 → 视图 → 专注预览打开。</li>
+          <li><b>导出 WAV/MP3：</b> 将你的乐曲录制为音频文件，保存在手机 Download/Resonor 文件夹中。</li>
+        </ul>
+      </div>
+
+      <div id="helpTheory" class="guide-page" style="display: none;">
+        <div class="guide-back-btn" data-help-page="helpToc">◀ 返回目录</div>
+        <h3>3. 创作与编曲 (彩蛋？)</h3>
+        <p>既然打开了 Resonor，不妨顺便偷学一点音乐制作的门道，这会让你的曲子瞬间提升一个档次。这里没有枯燥的教科书，只有能直接用的实战经验。</p>
+
+        <h4>🎵 1. 怎么写出“洗脑”的旋律？</h4>
+        <p>旋律好听的秘诀不是音越多越好，而是<b>“重复 + 微调”</b>。比如写了一段 <code>1234</code>，下一句就可以稍微改个尾音变成 <code>1235</code>。这叫动机发展。不要东写一个音、西写一个音，记住：“好听 = 熟悉感 + 一点点新鲜感”。</p>
+
+        <h4>🎹 2. 和弦套路：直接抄作业</h4>
+        <p>不用去背复杂的和弦推导，流行乐有四大“万能公式”，你直接用括号把它们框起来，铺在背景里就行：</p>
+        <ul>
+          <li><b>万金油走向（卡农）：</b> <code>(135) (572) (461) (246)</code>，非常抒情。</li>
+          <li><b>流行抒情走向：</b> <code>(461) (572) (135)</code>，经典流行歌标配。</li>
+          <li><b>悬念走向：</b> 把主和弦改成 <code>(246)</code>（小和弦），立刻忧郁起来。</li>
+        </ul>
+
+        <h4>⏱️ 3. 节奏的灵魂：留白与切分</h4>
+        <p>不要把每一拍都塞满！用 <code>.</code> 留出空拍，会让你有一种“呼吸感”。比如 <code>1.2.3</code> 就比 <code>123</code> 听起来有跳跃感。试着把重音错开，比如 <code>..12</code>（抢拍），这就是现代流行乐里常说的“律动感”（Groove）。</p>
+
+        <h4>💥 4. 动态控制：力度是情绪的放大器</h4>
+        <p>平铺直叙的歌像念经。试试用 <code>^[]</code> 制造起伏。比如 <code>1^[127]</code>（重）和 <code>1^[40]</code>（轻）交替。同样的旋律，如果你在第一拍重、后面几拍轻，听起来就会有“强弱次强弱”的律动。</p>
+
+        <h4>🎚️ 5. 混音台：拉开空间感</h4>
+        <p>为什么你的歌听起来糊成一团？因为乐器全挤在中间。去左侧混音台：</p>
+        <ul>
+          <li><b>声像 (Pan)：</b> 把钢琴拉左边，把吉他拉右边，声音立刻“开阔”了。</li>
+          <li><b>低切/厚度：</b> 如果主旋律和贝斯打架，把主旋律的“厚度”稍微降一点，让贝斯去负责低音区。</li>
+        </ul>
+
+        <h4>🎸 6. 简单粗暴的“配器”法则</h4>
+        <p>不要所有乐器都弹一样的音符。正确的分工是：</p>
+        <ul>
+          <li>选个“贝斯”或者“低音”乐器，只弹 <code>-1 -5</code> 这种长音铺底。</li>
+          <li>选个“弦乐”或“合成器”，弹 <code>(135)</code> 这种和弦做背景。</li>
+          <li>选个“长笛”或“主音吉他”，在上面弹你的 <code>1234</code> 主旋律。</li>
+        </ul>
+        <p>把高、中、低频交给不同的乐器，这才是专业编曲的秘诀。</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 通用自定义弹窗 -->
+  <div class="modal-overlay" id="appDialog" style="z-index: 7000;">
+    <div class="modal-content" style="max-width: 400px;">
+      <h3 id="appDialogTitle">提示</h3>
+      <p id="appDialogMsg" style="font-size: 14px; color: var(--text-main); line-height: 1.6; margin-bottom: 20px;"></p>
+
+      <input type="text" id="appDialogInput" class="save-as-input" style="display: none; margin-bottom: 20px;">
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="action-btn" id="appDialogCancel" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main); display: none;">取消</button>
+        <button class="action-btn" id="appDialogOk" style="background: var(--accent-blue); color: #fff;">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="appToast" style="position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 20px; z-index: 10000; pointer-events: none; opacity: 0; transition: opacity 0.3s; font-size: 14px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></div>
+
+  <!-- 自定义关于弹窗 -->
+  <div class="modal-overlay" id="customAboutModal">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+      <h2 style="font-size: 22px; color: var(--accent-blue); margin-top: 0;">Resonor</h2>
+      <p style="font-size: 15px; line-height: 1.8; color: var(--text-dim); margin-bottom: 28px;">
+        版本: <span style="background: linear-gradient(to right, #00FA9A, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; font-size: 16px;">Max 0.01</span><br><br>
+        作者: <span style="background: linear-gradient(to right, #00FA9A, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; font-size: 16px;">@一只饿龙咧</span>
+      </p>
+      <div style="display: flex; gap: 16px; justify-content: center;">
+        <button class="action-btn" id="aboutVisitBtn" style="background: var(--accent-blue); color: #fff;">访问我的主页</button>
+        <button class="action-btn" id="aboutCloseBtn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 启动声明弹窗 -->
+  <div class="modal-overlay" id="welcomeModal" style="z-index: 6000;">
+    <div class="modal-content" style="max-width: 560px;">
+      <div id="welcomeMain">
+        <h3 style="display:flex; align-items:center; gap:8px;">🎹 欢迎使用 Resonor</h3>
+        <p style="font-size: 14px; line-height: 1.8; color: var(--text-main); margin-bottom: 16px;">
+          使用本软件即表示您已阅读并同意
+          <a href="#" id="showDisclaimerLink" style="color: var(--accent-blue); text-decoration: underline; cursor: pointer;">《用户协议与免责声明》</a>
+        </p>
+        <p style="font-size: 14px; line-height: 1.8; color: var(--accent-red); font-weight: 600; padding: 12px; background: var(--bg-base); border-radius: 8px; border-left: 3px solid var(--accent-red); margin: 0 0 12px 0;">
+          ☠ 某些设备因不可抗力会出现异常，一些情况下，Resonor 会发出惨叫，胆小慎入!(bushi)
+        </p>
+        <p style="font-size: 13px; line-height: 1.6; color: var(--text-main); padding: 12px; background: var(--bg-base); border-radius: 8px; border-left: 3px solid var(--accent-blue); margin: 0;">
+          💡 <b>适配提示：</b>本应用专为 Android 横屏打造。如遇界面错乱，请从左上角 <b>菜单 → 视图 → 重新加载</b>。（操作之前建议先保存当前工程）
+        </p>
+        <div style="display: flex; justify-content: center; margin-top: 20px;">
+          <button class="action-btn" id="welcomeCloseBtn" style="background: var(--accent-blue); color: #fff; padding: 10px 32px;">我知道了</button>
+        </div>
+      </div>
+      <div id="disclaimerPage" style="display: none;">
+        <h3>📋 用户协议与免责声明</h3>
+        <h4>1. 通用条款</h4>
+        <p>本软件按「现状」提供，不附带任何明示或暗示的担保。您理解并同意，使用本软件的风险由您自行承担。开发者不对因使用或无法使用本软件而产生的任何直接或间接损失负责，包括但不限于数据丢失、设备损坏或业务中断。</p>
+        <h4>2. 数据与隐私</h4>
+        <ul>
+          <li><b>数据存储：</b>所有工程、设置和音色库缓存仅保存在本机，不上传任何服务器。</li>
+          <li><b>数据安全：</b>清理应用数据或卸载应用会导致数据丢失，请及时通过「文件 → 保存」导出工程。</li>
+        </ul>
+        <h4>3. 音频差异说明</h4>
+        <p>不同手机/耳机的扬声器特性不同，同一工程在不同设备上的音色表现可能有差异，属正常现象。</p>
+        <h4>4. 特殊声明</h4>
+        <p style="color: var(--accent-red); font-weight: 600;">☠ 某些设备因不可抗力会出现异常，一些情况下，Resonor 会发出惨叫，胆小慎入!(bushi)</p>
+        <div style="display: flex; justify-content: flex-start; margin-top: 20px;">
+          <button class="action-btn" id="backToWelcomeBtn" style="background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 20px;">← 返回</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 竖屏兜底遮罩 -->
+  <div class="orientation-guard" id="orientationGuard">
+    <div class="og-icon">📱</div>
+    <div class="og-text">请将设备横屏使用</div>
+    <div class="og-sub">Resonor 专为横屏设计</div>
+  </div>
+
+<script src="./bundle.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+   * 常量定义
+   * ============================================================ */
+
+  const GM_INSTRUMENTS = [
+    { name: "Acoustic Grand Piano 大钢琴", p: 0 }, { name: "Bright Acoustic Piano 亮音钢琴", p: 1 }, { name: "Electric Grand Piano 电大钢琴", p: 2 }, { name: "Honky-tonk Piano 酒吧钢琴", p: 3 },
+    { name: "Electric Piano 1 电钢琴1", p: 4 }, { name: "Electric Piano 2 电钢琴2", p: 5 }, { name: "Harpsichord 拨弦古钢琴", p: 6 }, { name: "Clavi 击弦古钢琴", p: 7 },
+    { name: "Celesta 钢片琴", p: 8 }, { name: "Glockenspiel 钟琴", p: 9 }, { name: "Music Box 八音盒", p: 10 }, { name: "Vibraphone 颤音琴", p: 11 },
+    { name: "Marimba 马林巴", p: 12 }, { name: "Xylophone 木琴", p: 13 }, { name: "Tubular Bells 管钟", p: 14 }, { name: "Dulcimer 扬琴", p: 15 },
+    { name: "Drawbar Organ 拉杆风琴", p: 16 }, { name: "Percussive Organ 打击型风琴", p: 17 }, { name: "Rock Organ 摇滚风琴", p: 18 }, { name: "Church Organ 教堂管风琴", p: 19 },
+    { name: "Reed Organ 簧风琴", p: 20 }, { name: "Accordion 手风琴", p: 21 }, { name: "Harmonica 口琴", p: 22 }, { name: "Tango Accordion 探戈手风琴", p: 23 },
+    { name: "Acoustic Guitar (nylon) 尼龙弦吉他", p: 24 }, { name: "Acoustic Guitar (steel) 钢弦吉他", p: 25 }, { name: "Electric Guitar (jazz) 爵士电吉他", p: 26 }, { name: "Electric Guitar (clean) 清音电吉他", p: 27 },
+    { name: "Electric Guitar (muted) 闷音电吉他", p: 28 }, { name: "Overdriven Guitar 过载吉他", p: 29 }, { name: "Distortion Guitar 失真吉他", p: 30 }, { name: "Guitar harmonics 吉他泛音", p: 31 },
+    { name: "Acoustic Bass 原声贝斯", p: 32 }, { name: "Electric Bass (finger) 指弹电贝斯", p: 33 }, { name: "Electric Bass (pick) 拨片电贝斯", p: 34 }, { name: "Fretless Bass 无品贝斯", p: 35 },
+    { name: "Slap Bass 1 击弦贝斯1", p: 36 }, { name: "Slap Bass 2 击弦贝斯2", p: 37 }, { name: "Synth Bass 1 合成贝斯1", p: 38 }, { name: "Synth Bass 2 合成贝斯2", p: 39 },
+    { name: "Violin 小提琴", p: 40 }, { name: "Viola 中提琴", p: 41 }, { name: "Cello 大提琴", p: 42 }, { name: "Contrabass 低音提琴", p: 43 },
+    { name: "Tremolo Strings 震音弦乐", p: 44 }, { name: "Pizzicato Strings 拨弦弦乐", p: 45 }, { name: "Orchestral Harp 管弦竖琴", p: 46 }, { name: "Timpani 定音鼓", p: 47 },
+    { name: "String Ensemble 1 弦乐合奏1", p: 48 }, { name: "String Ensemble 2 弦乐合奏2", p: 49 }, { name: "SynthStrings 1 合成弦乐1", p: 50 }, { name: "SynthStrings 2 合成弦乐2", p: 51 },
+    { name: "Choir Aahs 人声合唱 Aahs", p: 52 }, { name: "Voice Oohs 人声 Oohs", p: 53 }, { name: "Synth Voice 合成人声", p: 54 }, { name: "Orchestra Hit 管弦乐齐奏", p: 55 },
+    { name: "Trumpet 小号", p: 56 }, { name: "Trombone 长号", p: 57 }, { name: "Tuba 大号", p: 58 }, { name: "Muted Trumpet 弱音小号", p: 59 },
+    { name: "French Horn 圆号", p: 60 }, { name: "Brass Section 铜管乐组", p: 61 }, { name: "SynthBrass 1 合成铜管1", p: 62 }, { name: "SynthBrass 2 合成铜管2", p: 63 },
+    { name: "Soprano Sax 高音萨克斯", p: 64 }, { name: "Alto Sax 中音萨克斯", p: 65 }, { name: "Tenor Sax 次中音萨克斯", p: 66 }, { name: "Baritone Sax 低音萨克斯", p: 67 },
+    { name: "Oboe 双簧管", p: 68 }, { name: "English Horn 英国管", p: 69 }, { name: "Bassoon 大管", p: 70 }, { name: "Clarinet 单簧管", p: 71 },
+    { name: "Piccolo 短笛", p: 72 }, { name: "Flute 长笛", p: 73 }, { name: "Recorder 竖笛", p: 74 }, { name: "Pan Flute 排箫", p: 75 },
+    { name: "Blown Bottle 吹瓶声", p: 76 }, { name: "Shakuhachi 尺八", p: 77 }, { name: "Whistle 口哨", p: 78 }, { name: "Ocarina 陶笛", p: 79 },
+    { name: "Lead 1 (square) 合成主音1", p: 80 }, { name: "Lead 2 (sawtooth) 合成主音2", p: 81 }, { name: "Lead 3 (calliope) 合成主音3", p: 82 }, { name: "Lead 4 (chiff) 合成主音4", p: 83 },
+    { name: "Lead 5 (charang) 合成主音5", p: 84 }, { name: "Lead 6 (voice) 合成主音6", p: 85 }, { name: "Lead 7 (fifths) 合成主音7", p: 86 }, { name: "Lead 8 (bass + lead) 合成主音8", p: 87 },
+    { name: "Pad 1 (new age) 合成铺底1", p: 88 }, { name: "Pad 2 (warm) 合成铺底2", p: 89 }, { name: "Pad 3 (polysynth) 合成铺底3", p: 90 }, { name: "Pad 4 (choir) 合成铺底4", p: 91 },
+    { name: "Pad 5 (bowed) 合成铺底5", p: 92 }, { name: "Pad 6 (metallic) 合成铺底6", p: 93 }, { name: "Pad 7 (halo) 合成铺底7", p: 94 }, { name: "Pad 8 (sweep) 合成铺底8", p: 95 },
+    { name: "FX 1 (rain) 合成效果1", p: 96 }, { name: "FX 2 (soundtrack) 合成效果2", p: 97 }, { name: "FX 3 (crystal) 合成效果3", p: 98 }, { name: "FX 4 (atmosphere) 合成效果4", p: 99 },
+    { name: "FX 5 (brightness) 合成效果5", p: 100 }, { name: "FX 6 (goblins) 合成效果6", p: 101 }, { name: "FX 7 (echoes) 合成效果7", p: 102 }, { name: "FX 8 (sci-fi) 合成效果8", p: 103 },
+    { name: "Sitar 西塔琴", p: 104 }, { name: "Banjo 班卓琴", p: 105 }, { name: "Shamisen 三味线", p: 106 }, { name: "Koto 日本筝", p: 107 },
+    { name: "Kalimba 拇指琴", p: 108 }, { name: "Bag pipe 风笛", p: 109 }, { name: "Fiddle 乡村小提琴", p: 110 }, { name: "Shanai 唢呐", p: 111 },
+    { name: "Tinkle Bell 铃铛", p: 112 }, { name: "Agogo 阿哥哥铃", p: 113 }, { name: "Steel Drums 钢鼓", p: 114 }, { name: "Woodblock 木鱼", p: 115 },
+    { name: "Taiko Drum 太鼓", p: 116 }, { name: "Melodic Tom 旋律桶鼓", p: 117 }, { name: "Synth Drum 合成鼓", p: 118 }, { name: "Reverse Cymbal 反向镲", p: 119 },
+    { name: "Guitar Fret Noise 吉他品丝声", p: 120 }, { name: "Breath Noise 呼吸声", p: 121 }, { name: "Seashore 海浪声", p: 122 }, { name: "Bird Tweet 鸟鸣声", p: 123 },
+    { name: "Telephone Ring 电话铃声", p: 124 }, { name: "Helicopter 直升机声", p: 125 }, { name: "Applause 鼓掌声", p: 126 }, { name: "Gunshot 枪声", p: 127 },
+    { name: "🥁 Drum Kit 架子鼓", p: 128 }
+  ];
+
+  const GROUP_HUES = [215, 185, 260, 25, 0, 320, 290, 45, 85, 145, 170, 195, 245, 340, 215, 215, 50];
+  const SUB_DECO_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899'];
+
+  const GM_GROUPS = [
+    { name: "🎹 钢琴 (Piano)", start: 0 }, { name: "🔔 色彩打击乐", start: 8 }, { name: "🪗 风琴 (Organ)", start: 16 }, { name: "🎸 吉他 (Guitar)", start: 24 },
+    { name: "🎻 贝斯 (Bass)", start: 32 }, { name: "🎻 弦乐 (Strings)", start: 40 }, { name: "🎺 合奏 (Ensemble)", start: 48 }, { name: "🎺 铜管 (Brass)", start: 56 },
+    { name: "🎷 簧管 (Reed)", start: 64 }, { name: "🪈 管乐 (Pipe)", start: 72 }, { name: "🎛️ 合成主音", start: 80 }, { name: "🌌 合成铺底", start: 88 },
+    { name: "✨ 合成效果", start: 96 }, { name: "🪕 民族乐器", start: 104 }, { name: "🥁 打击乐", start: 112 }, { name: "🔊 音效", start: 120 },
+    { name: "🥁 架子鼓", start: 128, end: 129 }
+  ];
+
+  const SEMITONE = { '1': 0, '2': 2, '3': 4, '4': 5, '5': 7, '6': 9, '7': 11 };
+  const BASE_MIDI = 60;
+  const DEFAULT_NORMAL_VEL = 90;
+  const DEFAULT_PARAMS = Object.freeze({ vol: 100, pan: 64, pitchPan: false, reverb: 40, chorus: 0, bright: 64, resonance: 64 });
+  const DRUM_MIDI_MAP = { 0: 36, 2: 38, 4: 42, 5: 46, 7: 45, 9: 41, 11: 49 };
+
+  const DB_NAME = 'sf_cache_db';
+  const DB_STORE = 'soundfonts';
+  const CACHE_KEY = 'generalsoundfont';
+
+  const NOTE_SYM_COLOR = 'var(--text-main)';
+
+  const VK_NO_REPEAT_KEYS = new Set(['copy', 'paste', '()', '^[]']);
+
+  /* ============================================================
+   * 工具函数
+   * ============================================================ */
+
+  const $ = (id) => document.getElementById(id);
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function withTimeout(promise, ms, label) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(label + ' 超时')), ms);
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); }
+      );
+    });
+  }
+
+  /* ============================================================
+   * 主题切换
+   * ============================================================ */
+
+  const Theme = {
+    current: localStorage.getItem('seq_theme') || 'dark',
+    mediaQuery: window.matchMedia('(prefers-color-scheme: dark)'),
+    buttons: document.querySelectorAll('.theme-btn'),
+
+    apply(name) {
+      this.current = name;
+      localStorage.setItem('seq_theme', name);
+      const isDark = name === 'dark' || (name === 'system' && this.mediaQuery.matches);
+      document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      this.buttons.forEach((btn) => btn.classList.toggle('active', btn.dataset.themeVal === name));
+      document.dispatchEvent(new CustomEvent('themechange'));
+    },
+
+    init() {
+      this.buttons.forEach((btn) => btn.addEventListener('click', () => this.apply(btn.dataset.themeVal)));
+      this.mediaQuery.addEventListener('change', () => {
+        if (this.current === 'system') this.apply('system');
+      });
+      this.apply(this.current);
+    }
+  };
+
+  /* ============================================================
+   * 应用弹窗 & Toast
+   * ============================================================ */
+
+  const Dialog = {
+    overlay: null,
+    titleEl: null,
+    msgEl: null,
+    inputEl: null,
+    cancelBtn: null,
+    okBtn: null,
+    resolver: null,
+
+    init() {
+      this.overlay = $('appDialog');
+      this.titleEl = $('appDialogTitle');
+      this.msgEl = $('appDialogMsg');
+      this.inputEl = $('appDialogInput');
+      this.cancelBtn = $('appDialogCancel');
+      this.okBtn = $('appDialogOk');
+
+      this.okBtn.addEventListener('click', () => this.close(true));
+      this.cancelBtn.addEventListener('click', () => this.close(false));
+    },
+
+    show(type, title, message, defaultValue = '') {
+      return new Promise((resolve) => {
+        this.resolver = resolve;
+        this.titleEl.textContent = title;
+        this.msgEl.textContent = message;
+
+        const isPrompt = type === 'prompt';
+        this.inputEl.style.display = isPrompt ? 'block' : 'none';
+        if (isPrompt) this.inputEl.value = defaultValue;
+
+        if (type === 'alert') {
+          this.cancelBtn.style.display = 'none';
+          this.okBtn.textContent = '我知道了';
+        } else {
+          this.cancelBtn.style.display = 'block';
+          this.okBtn.textContent = type === 'confirm' ? '确定' : '保存';
+        }
+
+        this.overlay.classList.add('show');
+        if (isPrompt) setTimeout(() => this.inputEl.focus(), 100);
+      });
+    },
+
+    close(confirmed) {
+      if (this.resolver) {
+        const isPrompt = this.inputEl.style.display === 'block';
+        this.resolver(isPrompt ? (confirmed ? this.inputEl.value : null) : confirmed);
+        this.resolver = null;
+      }
+      this.overlay.classList.remove('show');
+    },
+
+    alert(message, title = '提示') { return this.show('alert', title, message); },
+    confirm(message, title = '确认操作') { return this.show('confirm', title, message); },
+    prompt(message, defaultValue = '', title = '请输入') { return this.show('prompt', title, message, defaultValue); }
+  };
+
+  window.appAlert = (msg, title) => Dialog.alert(msg, title);
+  window.appConfirm = (msg, title) => Dialog.confirm(msg, title);
+  window.appPrompt = (msg, def, title) => Dialog.prompt(msg, def, title);
+
+  let toastTimer = null;
+  window.appToast = function (msg) {
+    const toast = $('appToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+  };
+
+  /* ============================================================
+   * 布局：面板调整 / 抽屉菜单 / 竖屏兜底
+   * ============================================================ */
+
+  const Layout = {
+    init() {
+      this.initResizers();
+      this.initDrawer();
+      this.initOrientationGuard();
+    },
+
+    initResizers() {
+      const makeResizable = (resizerId, panelSelector) => {
+        const resizer = $(resizerId);
+        const panel = document.querySelector(panelSelector);
+        if (!resizer || !panel) return;
+
+        let isDragging = false;
+        resizer.addEventListener('pointerdown', (e) => {
+          isDragging = true;
+          resizer.classList.add('active');
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+        });
+        document.addEventListener('pointermove', (e) => {
+          if (!isDragging) return;
+          const newWidth = e.clientX - panel.getBoundingClientRect().left;
+          if (newWidth > 10) panel.style.width = `${newWidth}px`;
+        });
+        document.addEventListener('pointerup', () => {
+          if (!isDragging) return;
+          isDragging = false;
+          resizer.classList.remove('active');
+          document.body.style.cursor = 'default';
+        });
+      };
+      makeResizable('resizerMixer', '.mixer-panel');
+      makeResizable('resizerTrack', '.track-panel');
+    },
+
+    initOrientationGuard() {
+      const guard = $('orientationGuard');
+      if (!guard) return;
+      const check = () => {
+        guard.classList.toggle('show', window.innerHeight > window.innerWidth);
+      };
+      window.addEventListener('resize', check);
+      window.addEventListener('orientationchange', check);
+      check();
+    },
+
+    initDrawer() {
+      const menuBtn = $('mobileMenuBtn');
+      const overlay = $('menuOverlay');
+      const drawer = $('mobileDrawer');
+
+      const openDrawer = () => {
+        drawer.classList.add('show');
+        overlay.classList.add('show');
+      };
+      const closeDrawer = () => {
+        drawer.classList.remove('show');
+        overlay.classList.remove('show');
+        document.querySelectorAll('.drawer-submenu').forEach((el) => el.classList.remove('show'));
+      };
+
+      menuBtn.addEventListener('click', openDrawer);
+      overlay.addEventListener('click', closeDrawer);
+
+      document.querySelectorAll('[data-submenu]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const target = $(el.dataset.submenu);
+          if (target) target.classList.add('show');
+        });
+      });
+      document.querySelectorAll('[data-submenu-close]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const sub = el.closest('.drawer-submenu');
+          if (sub) sub.classList.remove('show');
+        });
+      });
+      document.querySelectorAll('[data-action]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const target = $(el.dataset.action);
+          if (target) target.click();
+          closeDrawer();
+        });
+      });
+      document.querySelectorAll('[data-exec]').forEach((el) => {
+        el.addEventListener('click', () => {
+          document.execCommand(el.dataset.exec);
+          closeDrawer();
+        });
+      });
+      document.querySelectorAll('[data-reload]').forEach((el) => {
+        el.addEventListener('click', () => location.reload());
+      });
+      document.querySelectorAll('[data-cmd="save-as"]').forEach((el) => {
+        el.addEventListener('click', () => {
+          if (typeof window.saveAsAction === 'function') window.saveAsAction();
+          closeDrawer();
+        });
+      });
+      document.querySelectorAll('[data-toggle="perf"]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const checkbox = $('perfModeCheck');
+          if (!checkbox) return;
+          checkbox.checked = !checkbox.checked;
+          checkbox.dispatchEvent(new Event('change'));
+        });
+      });
+    }
+  };
+
+  /* ============================================================
+   * 帮助说明书
+   * ============================================================ */
+
+  const Help = {
+    pages: ['helpCover', 'helpToc', 'helpSyntax', 'helpOperation', 'helpTheory'],
+
+    showPage(pageId) {
+      this.pages.forEach((id) => {
+        const el = $(id);
+        if (el) el.style.display = (id === pageId) ? 'block' : 'none';
+      });
+      const modalContent = document.querySelector('#helpModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    },
+
+    init() {
+      const modal = $('helpModal');
+      const openBtn = $('openHelpBtn');
+      const closeBtn = $('closeHelpBtn');
+
+      openBtn.addEventListener('click', () => {
+        this.showPage('helpCover');
+        modal.classList.add('show');
+      });
+      closeBtn.addEventListener('click', () => modal.classList.remove('show'));
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
+
+      document.querySelectorAll('[data-help-page]').forEach((el) => {
+        el.addEventListener('click', () => this.showPage(el.dataset.helpPage));
+      });
+    }
+  };
+
+  /* ============================================================
+   * 虚拟键盘 (输入委托)
+   * ============================================================ */
+
+  const VirtualKeyboard = {
+    wrap: null,
+    keyboard: null,
+    header: null,
+    editor: null,
+    previewEditor: null,
+
+    scale: 1,
+    isDragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    wrapLeft: 0,
+    wrapTop: 0,
+    clipboard: '',
+    repeatTimeout: null,
+    repeatInterval: null,
+
+    init(editor, previewEditor) {
+      this.wrap = $('vkWrap');
+      this.keyboard = $('virtualKeyboard');
+      this.header = $('vkDragHandle');
+      this.editor = editor;
+      this.previewEditor = previewEditor;
+
+      this.bindDrag();
+      this.bindKeys();
+      this.bindControls();
+
+      editor.addEventListener('focus', () => this.show());
+      previewEditor.addEventListener('focus', () => this.show());
+
+      editor.addEventListener('keydown', (e) => this.handleLiveKey(e, editor));
+      previewEditor.addEventListener('keydown', (e) => this.handleLiveKey(e, previewEditor));
+    },
+
+    show() { this.wrap.classList.add('show'); },
+    hide() { this.wrap.classList.remove('show'); },
+
+    bindControls() {
+      document.querySelectorAll('[data-vk-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.vkAction;
+          if (action === 'zoom-in') this.resize(0.1);
+          else if (action === 'zoom-out') this.resize(-0.1);
+          else if (action === 'close') this.hide();
+        });
+      });
+    },
+
+    bindDrag() {
+      this.header.addEventListener('pointerdown', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        this.isDragging = true;
+        this.dragStartX = e.clientX;
+        this.dragStartY = e.clientY;
+        const rect = this.wrap.getBoundingClientRect();
+        this.wrapLeft = rect.left;
+        this.wrapTop = rect.top;
+        this.wrap.classList.add('dragged');
+        this.wrap.style.left = this.wrapLeft + 'px';
+        this.wrap.style.top = this.wrapTop + 'px';
+        this.wrap.style.bottom = 'auto';
+        e.preventDefault();
+      });
+      document.addEventListener('pointermove', (e) => {
+        if (!this.isDragging) return;
+        this.wrap.style.left = (this.wrapLeft + e.clientX - this.dragStartX) + 'px';
+        this.wrap.style.top = (this.wrapTop + e.clientY - this.dragStartY) + 'px';
+      });
+      document.addEventListener('pointerup', () => {
+        if (!this.isDragging) return;
+        this.isDragging = false;
+        this.clampToViewport();
+      });
+    },
+
+    bindKeys() {
+      document.querySelectorAll('.vk-key').forEach((btn) => {
+        const handlePress = (e) => {
+          e.preventDefault();
+          const key = btn.dataset.key;
+          
+          // 区分单次点击和长按连发
+          App.handleVirtualInput(key, false);
+
+          if (VK_NO_REPEAT_KEYS.has(key)) return;
+
+          clearTimeout(this.repeatTimeout);
+          clearInterval(this.repeatInterval);
+          this.repeatTimeout = setTimeout(() => {
+            // 连发时传入 true 表示不实时同步，以减轻渲染压力
+            this.repeatInterval = setInterval(() => App.handleVirtualInput(key, true), 50);
+          }, 300);
+        };
+        const stopPress = () => {
+          clearTimeout(this.repeatTimeout);
+          clearInterval(this.repeatInterval);
+          // 停止连发时，强制同步一次结果
+          if (App.dom.editor || App.dom.previewEditor) {
+             syncTokens();
+             saveText();
+          }
+        };
+        btn.addEventListener('pointerdown', handlePress);
+        btn.addEventListener('pointerup', stopPress);
+        btn.addEventListener('pointerleave', stopPress);
+        btn.addEventListener('pointercancel', stopPress);
+      });
+    },
+
+    clampToViewport() {
+      const vkRect = this.keyboard.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const minVisible = 60;
+      let dx = 0;
+      let dy = 0;
+      if (vkRect.right < minVisible) dx = minVisible - vkRect.right;
+      if (vkRect.left > vw - minVisible) dx = (vw - minVisible) - vkRect.left;
+      if (vkRect.bottom < minVisible) dy = minVisible - vkRect.bottom;
+      if (vkRect.top > vh - minVisible) dy = (vh - minVisible) - vkRect.top;
+      if (!dx && !dy) return;
+
+      if (!this.wrap.classList.contains('dragged')) {
+        const wrapRect = this.wrap.getBoundingClientRect();
+        this.wrap.classList.add('dragged');
+        this.wrap.style.left = (wrapRect.left + dx) + 'px';
+        this.wrap.style.top = (wrapRect.top + dy) + 'px';
+        this.wrap.style.bottom = 'auto';
+      } else {
+        const curL = parseFloat(this.wrap.style.left) || 0;
+        const curT = parseFloat(this.wrap.style.top) || 0;
+        this.wrap.style.left = (curL + dx) + 'px';
+        this.wrap.style.top = (curT + dy) + 'px';
+      }
+    },
+
+    resize(delta) {
+      this.scale = Math.max(0.5, Math.min(2.0, this.scale + delta));
+      this.keyboard.style.transform = `scale(${this.scale})`;
+      requestAnimationFrame(() => this.clampToViewport());
+    },
+
+    handleLiveKey(e, editor) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key;
+      if (key >= '1' && key <= '7') {
+        let oct = 0;
+        let j = editor.selectionStart - 1;
+        while (j >= 0 && (editor.value[j] === '+' || editor.value[j] === '-')) {
+          oct += editor.value[j] === '+' ? 1 : -1;
+          j--;
+        }
+        const prefix = oct > 0 ? '+'.repeat(oct) : (oct < 0 ? '-'.repeat(-oct) : '');
+        fireLiveNote(prefix + key);
+      }
+    }
+  };
+
+  /* ============================================================
+   * 核心状态
+   * ============================================================ */
+
+  let currentProgram = 0;
+  let instrumentParams = {};
+  let currentAveragePitch = 60;
+  let recentInstruments = [];
+
+  let currentParts = [];
+  let tokens = [];
+  let tokenEls = [];
+
+  let audioCtx = null;
+  let synth = null;
+  let isReady = false;
+  let masterGainNode = null;
+  let limiterNode = null;
+  let metronomeGainNode = null;
+  let scheduledMetronomeNodes = [];
+
+  let playing = false;
+  let startTime = 0;
+  let beatDur = 0.5;
+  let currentIdx = -1;
+  let rafId = null;
+  let onTimers = [];
+  let offTimers = [];
+  let totalDuration = 0;
+  let playStartIdx = 0;
+  let audioEndTime = 0;
+  let currentChannelMap = {};
+
+  let isDragging = false;
+  let isPreviewOpen = false;
+  let isPerfMode = false;
+  let currentFileName = null;
+
+  let exportMode = null;
+  let pcmBuffers = [];
+  let recorderNode = null;
+  let silentGainNode = null;
+
+  /* ============================================================
+   * 乐器风格工具
+   * ============================================================ */
+
+  function getInstStyle(p) {
+    if (p === undefined || p === null || isNaN(p)) {
+      return { textColor: NOTE_SYM_COLOR, decoColor: null, className: '' };
+    }
+    const isLight = document.body.getAttribute('data-theme') === 'light';
+    if (p === 128) {
+      return {
+        textColor: isLight ? 'hsl(50, 100%, 40%)' : 'hsl(50, 100%, 60%)',
+        decoColor: isLight ? '#333' : '#ffffff',
+        className: 'deco-solid'
+      };
+    }
+    const groupIdx = Math.floor(p / 8);
+    const subIdx = p % 8;
+    const hue = GROUP_HUES[groupIdx];
+    let sat = isLight ? 60 : 70;
+    if (groupIdx === 14) sat = 20;
+    if (groupIdx === 15) sat = 10;
+    const light = isLight ? (35 + subIdx * 2) : (55 + subIdx * 3);
+    return {
+      textColor: `hsl(${hue}, ${sat}%, ${light}%)`,
+      decoColor: SUB_DECO_COLORS[subIdx],
+      className: 'deco-solid'
+    };
+  }
+
+  /* ============================================================
+   * 乐器下拉选项渲染
+   * ============================================================ */
+
+  function createOptionItem(inst) {
+    const styleObj = getInstStyle(inst.p);
+    const item = document.createElement('div');
+    item.className = 'option-item';
+    item.dataset.value = inst.p;
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = inst.name;
+    textSpan.style.color = styleObj.textColor;
+    textSpan.style.textDecorationColor = styleObj.decoColor;
+    textSpan.className = styleObj.className;
+    item.appendChild(textSpan);
+
+    item.addEventListener('click', () => App.setInstrument(inst.p));
+    if (inst.p === currentProgram) item.classList.add('selected');
+    return item;
+  }
+
+  function renderOptions(filterText = '') {
+    const list = App.dom.optionsList;
+    if (!list) return;
+    list.innerHTML = '';
+    const keyword = filterText.toLowerCase().trim();
+
+    if (keyword === '') {
+      if (recentInstruments.length > 0) {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'option-group';
+        groupEl.textContent = '🕒 最近使用';
+        list.appendChild(groupEl);
+        recentInstruments.forEach((p) => {
+          const inst = GM_INSTRUMENTS.find((x) => x.p === p);
+          if (inst) list.appendChild(createOptionItem(inst));
+        });
+      }
+      GM_GROUPS.forEach((group) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'option-group';
+        groupEl.textContent = group.name;
+        list.appendChild(groupEl);
+        const end = group.end !== undefined ? group.end : Math.min(group.start + 8, 128);
+        for (let i = group.start; i < end; i++) list.appendChild(createOptionItem(GM_INSTRUMENTS[i]));
+      });
+    } else {
+      const found = GM_INSTRUMENTS.filter((inst) => inst.name.toLowerCase().includes(keyword));
+      if (found.length > 0) {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'option-group';
+        groupEl.textContent = `搜索 " ${filterText} " 的结果`;
+        list.appendChild(groupEl);
+        found.forEach((inst) => list.appendChild(createOptionItem(inst)));
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'option-group';
+        empty.style.textAlign = 'center';
+        empty.textContent = '未找到相关乐器';
+        list.appendChild(empty);
+      }
+    }
+
+    document.querySelectorAll('.option-item').forEach((el) => {
+      if (parseInt(el.dataset.value) === currentProgram) el.classList.add('selected');
+    });
+  }
+
+  /* ============================================================
+   * 乐谱解析
+   * ============================================================ */
+
+  function parseNote(str) {
+    let oct = 0;
+    let i = 0;
+    while (i < str.length && (str[i] === '+' || str[i] === '-')) {
+      oct += str[i] === '+' ? 1 : -1;
+      i++;
+    }
+    const d = str[i];
+    return Object.prototype.hasOwnProperty.call(SEMITONE, d) ? SEMITONE[d] + oct * 12 : null;
+  }
+
+  function tryParseVel(text, j) {
+    if (j >= text.length || (text[j] !== '^' && text[j] !== '＾')) {
+      return { vel: null, next: j };
+    }
+    const k = j + 1;
+    const isLeft = (k < text.length && (text[k] === '[' || text[k] === '【'));
+    if (!isLeft) return { vel: { type: '^', val: null }, next: k };
+
+    const close1 = text.indexOf(']', k + 1);
+    const close2 = text.indexOf('】', k + 1);
+    let close = -1;
+    if (close1 !== -1 && close2 !== -1) close = Math.min(close1, close2);
+    else close = close1 !== -1 ? close1 : close2;
+
+    if (close !== -1) {
+      const raw = text.slice(k + 1, close).trim();
+      const m = raw.match(/^\d{1,3}$/);
+      if (m) return { vel: { type: '^', val: parseInt(m[0], 10) }, next: close + 1 };
+    }
+    return { vel: { type: '^', val: null }, next: k };
+  }
+
+  function parseParts(text) {
+    const parts = [];
+    let i = 0;
+    while (i < text.length) {
+      const ch = text[i];
+
+      if (/\s/.test(ch)) {
+        let j = i;
+        while (j < text.length && /\s/.test(text[j])) j++;
+        parts.push({ type: 'ws', text: text.slice(i, j) });
+        i = j;
+        continue;
+      }
+
+      if (ch === '(' || ch === ')' || ch === '[' || ch === ']' ||
+          ch === '（' || ch === '）' || ch === '【' || ch === '】' ||
+          ch === '|' || ch === '｜') {
+        if (ch === ')' || ch === '）') {
+          const res = tryParseVel(text, i + 1);
+          parts.push({ type: 'symbol', text: ch, chordVel: res.vel });
+          i = res.next;
+        } else {
+          parts.push({ type: 'symbol', text: ch });
+          i++;
+        }
+        continue;
+      }
+
+      if (ch === '.' || ch === '。') {
+        parts.push({ type: 'note', text: ch, vel: null });
+        i++;
+        continue;
+      }
+
+      if (ch === '+' || ch === '-') {
+        let j = i;
+        while (j < text.length && (text[j] === '+' || text[j] === '-')) j++;
+        if (j < text.length && text[j] >= '1' && text[j] <= '7') j++;
+        else j = i + 1;
+        const noteStr = text.slice(i, j);
+        const res = tryParseVel(text, j);
+        parts.push({ type: 'note', text: noteStr, vel: res.vel });
+        i = res.next;
+        continue;
+      }
+
+      if (ch >= '1' && ch <= '7') {
+        const res = tryParseVel(text, i + 1);
+        parts.push({ type: 'note', text: ch, vel: res.vel });
+        i = res.next;
+        continue;
+      }
+
+      parts.push({ type: 'ws', text: ch });
+      i++;
+    }
+    return parts;
+  }
+
+  function lcsMap(a, b) {
+    const n = a.length;
+    const m = b.length;
+    const dp = [];
+    for (let i = 0; i <= n; i++) dp.push(new Uint16Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = (a[i] === b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const map = new Map();
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) {
+        map.set(j, i);
+        i++;
+        j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+      else j++;
+    }
+    return map;
+  }
+
+  /* ============================================================
+   * 应用主体
+   * ============================================================ */
+
+  const App = {
+    dom: {},
+    editorWrap: null,
+    hlLayer: null,
+    hlContent: null,
+
+    init() {
+      this.dom = {
+        editor: $('editor'),
+        previewEditor: $('previewEditor'),
+        bpmInput: $('bpm'),
+        playBtn: $('playBtn'),
+        stopBtn: $('stopBtn'),
+        trackListEl: $('trackList'),
+        mixerControlsEl: $('mixerControls'),
+        statusDot: $('statusDot'),
+        statusText: $('statusText'),
+        sfFileInput: $('sfFileInput'),
+        exportWavBtn: $('exportWavBtn'),
+        exportMp3Btn: $('exportMp3Btn'),
+        fileRow: $('fileRow'),
+        masterVolInput: $('masterVol'),
+        metronomeCheck: $('metronomeCheck'),
+        metronomeToggle: $('metronomeToggle'),
+        progressBar: $('progressBar'),
+        currentTimeEl: $('currentTime'),
+        totalTimeEl: $('totalTime'),
+        previewModal: $('previewModal'),
+        previewHlLayer: $('previewHlLayer'),
+        previewHlContent: $('previewHlContent'),
+        openPreviewBtn: $('openPreviewBtn'),
+        closePreviewBtn: $('closePreviewBtn'),
+        previewPlayBtn: $('previewPlayBtn'),
+        previewStopBtn: $('previewStopBtn'),
+        previewCurTime: $('previewCurTime'),
+        previewTotalTime: $('previewTotalTime'),
+        previewProgress: $('previewProgress'),
+        perfToggleWrap: $('perfToggleWrap'),
+        perfModeCheck: $('perfModeCheck'),
+        bpmX4Toggle: $('bpmX4Toggle'),
+        bpmX4Check: $('bpmX4Check'),
+        customSelect: $('customSelect'),
+        selectTrigger: $('selectTrigger'),
+        selectOptions: $('selectOptions'),
+        optionsList: $('optionsList'),
+        instSearch: $('instSearch'),
+        perfStateLabel: $('perfStateLabel')
+      };
+
+      this.editorWrap = $('editorWrap');
+      this.hlLayer = $('hlLayer');
+      this.hlContent = $('hlContent');
+
+      this.restoreSettings();
+      this.bindTransport();
+      this.bindEditor();
+      this.bindPreview();
+      this.bindProject();
+      this.bindThemeRefresh();
+
+      VirtualKeyboard.init(this.dom.editor, this.dom.previewEditor);
+      this.initInstrumentSelect();
+
+      this.initApp();
+    },
+
+    /* ------- 设置恢复 ------- */
+
+    restoreSettings() {
+      const { bpmInput, masterVolInput, metronomeCheck, metronomeToggle, perfModeCheck, perfToggleWrap, bpmX4Check, bpmX4Toggle, perfStateLabel } = this.dom;
+
+      const savedBpm = localStorage.getItem('seq_bpm');
+      if (savedBpm) bpmInput.value = savedBpm;
+
+      const savedProgram = localStorage.getItem('seq_program');
+      if (savedProgram) currentProgram = parseInt(savedProgram);
+
+      const savedMaster = localStorage.getItem('seq_master_vol');
+      if (savedMaster) masterVolInput.value = savedMaster;
+
+      const savedMetro = localStorage.getItem('seq_metronome');
+      if (savedMetro === 'true') {
+        metronomeCheck.checked = true;
+        metronomeToggle.classList.add('active');
+      }
+
+      localStorage.removeItem('seq_accent_vel');
+      localStorage.removeItem('seq_soft_vel');
+
+      const savedPerf = localStorage.getItem('seq_perf_mode');
+      if (savedPerf === 'true') {
+        isPerfMode = true;
+        perfModeCheck.checked = true;
+        perfToggleWrap.classList.add('active');
+      }
+      if (perfStateLabel) perfStateLabel.textContent = perfModeCheck.checked ? '开' : '关';
+
+      const savedX4 = localStorage.getItem('seq_x4_mode');
+      if (savedX4 === 'false') {
+        bpmX4Check.checked = false;
+        bpmX4Toggle.classList.remove('active');
+      } else {
+        bpmX4Check.checked = true;
+        bpmX4Toggle.classList.add('active');
+      }
+
+      const savedText = localStorage.getItem('seq_text');
+      const initialText = savedText !== null ? savedText : '123(135)..+7++5.\n-5-31.(1+3+5)';
+      this.dom.editor.value = initialText;
+      this.dom.previewEditor.value = initialText;
+    },
+
+    /* ------- 传输控制 ------- */
+
+    bindTransport() {
+      const {
+        bpmInput, masterVolInput, metronomeCheck, metronomeToggle,
+        perfModeCheck, perfToggleWrap, bpmX4Check, bpmX4Toggle,
+        playBtn, stopBtn, progressBar, previewProgress, perfStateLabel
+      } = this.dom;
+
+      bpmInput.addEventListener('input', () => {
+        localStorage.setItem('seq_bpm', bpmInput.value);
+        if (!playing) updateTotalTime();
+      });
+
+      masterVolInput.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (masterGainNode) masterGainNode.gain.value = val;
+        localStorage.setItem('seq_master_vol', val);
+      });
+
+      metronomeCheck.addEventListener('change', (e) => {
+        metronomeToggle.classList.toggle('active', e.target.checked);
+        localStorage.setItem('seq_metronome', e.target.checked);
+      });
+
+      perfModeCheck.addEventListener('change', (e) => {
+        isPerfMode = e.target.checked;
+        perfToggleWrap.classList.toggle('active', isPerfMode);
+        localStorage.setItem('seq_perf_mode', isPerfMode);
+        if (!isPerfMode) this.editorWrap.classList.remove('typing');
+        else syncTokens();
+        if (perfStateLabel) perfStateLabel.textContent = isPerfMode ? '开' : '关';
+      });
+
+      bpmX4Check.addEventListener('change', (e) => {
+        bpmX4Toggle.classList.toggle('active', e.target.checked);
+        localStorage.setItem('seq_x4_mode', e.target.checked);
+        if (!playing) updateTotalTime();
+      });
+
+      playBtn.addEventListener('click', () => {
+        let s = parseInt(progressBar.value) || 0;
+        if (s >= tokens.length) s = 0;
+        play(null, s);
+      });
+      stopBtn.addEventListener('click', stopPlayback);
+
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          if (playing) stopPlayback();
+          else {
+            let s = parseInt(previewProgress.value) || 0;
+            if (s >= tokens.length) s = 0;
+            play(null, s);
+          }
+        }
+      });
+
+      bindDrag(progressBar);
+      bindDrag(previewProgress);
+
+      progressBar.addEventListener('input', () => {
+        const val = parseInt(progressBar.value);
+        const timeStr = formatTime(val * beatDur);
+        this.dom.currentTimeEl.textContent = timeStr;
+        this.dom.previewCurTime.textContent = timeStr;
+        previewProgress.value = val;
+      });
+      previewProgress.addEventListener('input', () => {
+        const val = parseInt(previewProgress.value);
+        const timeStr = formatTime(val * beatDur);
+        this.dom.currentTimeEl.textContent = timeStr;
+        this.dom.previewCurTime.textContent = timeStr;
+        progressBar.value = val;
+      });
+
+      progressBar.addEventListener('change', () => handleProgressChange(parseInt(progressBar.value)));
+      previewProgress.addEventListener('change', () => handleProgressChange(parseInt(previewProgress.value)));
+    },
+
+    /* ------- 编辑器 ------- */
+
+    bindEditor() {
+      const { editor, previewEditor } = this.dom;
+      let inputTimer = null;
+      let previewInputTimer = null;
+
+      editor.addEventListener('input', () => {
+        checkInputValidity(editor.value);
+        previewEditor.value = editor.value; // 无条件同步
+        if (playing) stopPlayback();
+
+        clearTimeout(inputTimer);
+        if (isPerfMode) {
+          this.editorWrap.classList.add('typing');
+          inputTimer = setTimeout(() => {
+            this.editorWrap.classList.remove('typing');
+            syncTokens();
+            saveText();
+          }, 300);
+        } else {
+          this.editorWrap.classList.remove('typing');
+          inputTimer = setTimeout(() => { syncTokens(); saveText(); }, 20);
+        }
+      });
+
+      editor.addEventListener('scroll', () => {
+        this.hlLayer.scrollTop = editor.scrollTop;
+        this.hlLayer.scrollLeft = editor.scrollLeft;
+      });
+
+      previewEditor.addEventListener('input', () => {
+        checkInputValidity(previewEditor.value);
+        editor.value = previewEditor.value; // 无条件同步
+        if (playing) stopPlayback();
+
+        clearTimeout(previewInputTimer);
+        if (isPerfMode) {
+          previewInputTimer = setTimeout(() => { syncTokens(); saveText(); }, 300);
+        } else {
+          previewInputTimer = setTimeout(() => { syncTokens(); saveText(); }, 20);
+        }
+      });
+
+      previewEditor.addEventListener('scroll', () => {
+        this.dom.previewHlLayer.scrollTop = previewEditor.scrollTop;
+        this.dom.previewHlLayer.scrollLeft = previewEditor.scrollLeft;
+      });
+    },
+
+    /* ------- 预览 ------- */
+
+    bindPreview() {
+      const {
+        openPreviewBtn, closePreviewBtn, previewModal, previewEditor,
+        previewPlayBtn, previewStopBtn, previewProgress
+      } = this.dom;
+
+      openPreviewBtn.addEventListener('click', () => {
+        isPreviewOpen = true;
+        previewModal.classList.add('show');
+        previewEditor.value = this.dom.editor.value;
+        
+        VirtualKeyboard.show();
+        syncTokens();
+
+        requestAnimationFrame(() => {
+          previewEditor.focus();
+          const end = previewEditor.value.length;
+          previewEditor.setSelectionRange(end, end);
+        });
+      });
+
+      previewEditor.addEventListener('pointerdown', () => {
+        if (document.activeElement !== previewEditor) {
+          previewEditor.focus();
+        }
+      });
+
+      closePreviewBtn.addEventListener('click', () => {
+        isPreviewOpen = false;
+        previewModal.classList.remove('show');
+        if (playing) stopPlayback();
+        
+        this.dom.editor.value = this.dom.previewEditor.value;
+        syncTokens();
+
+        requestAnimationFrame(() => {
+          this.dom.editor.focus();
+          this.hlLayer.scrollTop = this.dom.editor.scrollTop;
+          this.hlLayer.scrollLeft = this.dom.editor.scrollLeft;
+        });
+      });
+
+      previewPlayBtn.addEventListener('click', () => {
+        let s = parseInt(previewProgress.value) || 0;
+        if (s >= tokens.length) s = 0;
+        play(null, s);
+      });
+      previewStopBtn.addEventListener('click', stopPlayback);
+    },
+
+    /* ------- 工程文件 ------- */
+
+    bindProject() {
+      $('saveBtn').addEventListener('click', () => this.handleSave());
+      $('loadBtn').addEventListener('click', () => $('projectInput').click());
+      $('projectInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          this.loadResonContent(event.target.result, file.name);
+          e.target.value = '';
+        };
+        reader.readAsText(file);
+      });
+
+      $('newBtn').addEventListener('click', () => {
+        Dialog.confirm('确定要新建工程吗？当前未导出的内容将会丢失。', '新建工程').then((confirmed) => {
+          if (!confirmed) return;
+          if (playing) stopPlayback();
+          this.dom.editor.value = '';
+          this.dom.previewEditor.value = '';
+          syncTokens(true);
+          localStorage.setItem('seq_text', '');
+          currentFileName = null;
+        });
+      });
+
+      $('sfFileInput').addEventListener('change', async () => {
+        const file = this.dom.sfFileInput.files[0];
+        if (!file) return;
+        try {
+          setStatus('loading', '正在读取音色库…');
+          const sfBuffer = await file.arrayBuffer();
+          await initSynth(sfBuffer, true);
+        } catch (err) {
+          console.error(err);
+          setStatus('error', '加载失败：' + err.message);
+        }
+      });
+
+      $('clearCacheBtn').addEventListener('click', () => {
+        Dialog.confirm('确定要清除缓存的音色库吗？下次打开需重新选择文件。', '清除缓存').then(async (confirmed) => {
+          if (!confirmed) return;
+          try { await withTimeout(clearCache(), 2000, '清除缓存'); } catch (e) { /* 忽略 */ }
+          location.reload();
+        });
+      });
+
+      $('openAboutBtn').addEventListener('click', () => {
+        $('customAboutModal').classList.add('show');
+      });
+      $('customAboutModal').addEventListener('click', (e) => {
+        if (e.target === $('customAboutModal')) $('customAboutModal').classList.remove('show');
+      });
+      $('aboutVisitBtn').addEventListener('click', () => window.open('https://b23.tv/VSkxZYH', '_blank'));
+      $('aboutCloseBtn').addEventListener('click', () => $('customAboutModal').classList.remove('show'));
+    },
+
+    /* ------- 主题变化刷新 ------- */
+
+    bindThemeRefresh() {
+      document.addEventListener('themechange', () => {
+        renderUnderlay();
+        updateLegend();
+        this.renderSelectTrigger();
+        if (isPreviewOpen) renderPreview();
+      });
+    },
+
+    /* ------- 乐器选择器 ------- */
+
+    initInstrumentSelect() {
+      const { instSearch, selectTrigger, selectOptions } = this.dom;
+
+      const savedRecent = localStorage.getItem('seq_recent_insts');
+      if (savedRecent) {
+        try { recentInstruments = JSON.parse(savedRecent); } catch (e) { recentInstruments = []; }
+      }
+      if (!Array.isArray(recentInstruments)) recentInstruments = [];
+
+      renderOptions();
+
+      instSearch.addEventListener('input', (e) => renderOptions(e.target.value));
+      instSearch.addEventListener('keydown', (e) => e.stopPropagation());
+
+      selectTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectOptions.classList.toggle('show');
+        if (selectOptions.classList.contains('show')) {
+          renderOptions();
+          instSearch.focus();
+        }
+      });
+
+      document.addEventListener('click', () => selectOptions.classList.remove('show'));
+
+      this.renderSelectTrigger();
+    },
+
+    renderSelectTrigger() {
+      const inst = GM_INSTRUMENTS.find((x) => x.p === currentProgram) || { name: '未知乐器' };
+      const styleObj = getInstStyle(currentProgram);
+      const trigger = this.dom.selectTrigger;
+      trigger.innerHTML = '';
+      const textSpan = document.createElement('span');
+      textSpan.textContent = inst.name;
+      textSpan.style.color = styleObj.textColor;
+      textSpan.style.textDecorationColor = styleObj.decoColor;
+      textSpan.className = styleObj.className;
+      trigger.appendChild(textSpan);
+    },
+
+    setInstrument(p, silent = false) {
+      currentProgram = p;
+      this.renderSelectTrigger();
+      this.dom.selectOptions.classList.remove('show');
+      this.dom.instSearch.value = '';
+      localStorage.setItem('seq_program', currentProgram);
+
+      recentInstruments = recentInstruments.filter((x) => x !== p);
+      recentInstruments.unshift(p);
+      if (recentInstruments.length > 4) recentInstruments.pop();
+      localStorage.setItem('seq_recent_insts', JSON.stringify(recentInstruments));
+
+      if (!silent) playTestNote();
+    },
+
+    /* ------- 保存 / 加载 ------- */
+
+    buildProjectData() {
+      const noteInstruments = currentParts
+        .filter((p) => p.type === 'note')
+        .map((p) => (p.inst !== undefined && p.inst !== null) ? p.inst : currentProgram);
+
+      return {
+        app: 'WebSequencer',
+        version: 2.0,
+        text: this.dom.editor.value,
+        bpm: parseFloat(this.dom.bpmInput.value) || 132,
+        program: currentProgram,
+        params: instrumentParams,
+        masterVol: parseFloat(this.dom.masterVolInput.value),
+        metronome: this.dom.metronomeCheck.checked,
+        noteInstruments
+      };
+    },
+
+    defaultProjectName() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `编曲工程_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+    },
+
+    handleSave() {
+      const projectData = this.buildProjectData();
+
+      const doSave = async (filename) => {
+        const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+        await downloadBlob(blob, filename);
+      };
+
+      if (currentFileName) {
+        doSave(currentFileName).then(() => {
+          window.appToast('已保存：' + currentFileName);
+        }).catch((e) => {
+          window.appAlert('保存失败：' + e.message, '错误');
+        });
+        return;
+      }
+
+      const defaultName = this.defaultProjectName();
+      Dialog.prompt('请输入文件名（无需手动加后缀）:', defaultName, '首次保存工程').then((userInput) => {
+        if (userInput === null || userInput.trim() === '') return;
+        const trimmed = userInput.trim();
+        const finalName = trimmed.endsWith('.reson') ? trimmed : trimmed + '.reson';
+        currentFileName = finalName;
+        
+        doSave(finalName).then(() => {
+          window.appToast('已保存：' + finalName);
+        }).catch((e) => {
+          window.appAlert('保存失败：' + e.message, '错误');
+        });
+      });
+    },
+
+    saveAsAction() {
+      const projectData = this.buildProjectData();
+      const defaultName = this.defaultProjectName();
+
+      Dialog.prompt('请输入新文件名:', defaultName, '另存为').then((userInput) => {
+        if (userInput === null || userInput.trim() === '') return;
+        const trimmed = userInput.trim();
+        const finalName = trimmed.endsWith('.reson') ? trimmed : trimmed + '.reson';
+        currentFileName = finalName;
+        
+        const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+        
+        downloadBlob(blob, finalName).then(() => {
+          window.appToast('已另存为：' + finalName);
+        }).catch((e) => {
+          window.appAlert('保存失败：' + e.message, '错误');
+        });
+      });
+    },
+
+    loadResonContent(rawText, originalFileName) {
+      try {
+        const data = JSON.parse(rawText);
+        if (data.app !== 'WebSequencer') throw new Error('不是有效的工程文件');
+
+        currentFileName = originalFileName || '导入的工程.reson';
+
+        if (playing) stopPlayback();
+
+        const { editor, previewEditor, bpmInput, masterVolInput, metronomeCheck, metronomeToggle } = this.dom;
+        editor.value = data.text || '';
+        previewEditor.value = editor.value;
+        bpmInput.value = data.bpm || 132;
+        currentProgram = data.program !== undefined ? data.program : 0;
+        instrumentParams = data.params || data.volumes || {};
+
+        // 强制合并默认参数，防止极老版本文件缺字段导致 undefined
+        Object.keys(instrumentParams).forEach((p) => {
+          const prm = instrumentParams[p];
+          if (prm.delay !== undefined && prm.chorus === undefined) prm.chorus = prm.delay;
+          if (prm.thick !== undefined && prm.resonance === undefined) prm.resonance = prm.thick;
+          instrumentParams[p] = { ...DEFAULT_PARAMS, ...prm };
+        });
+
+        if (data.masterVol !== undefined) masterVolInput.value = data.masterVol;
+        if (data.metronome !== undefined) metronomeCheck.checked = data.metronome;
+        metronomeToggle.classList.toggle('active', metronomeCheck.checked);
+        if (masterGainNode) masterGainNode.gain.value = parseFloat(masterVolInput.value);
+
+        localStorage.setItem('seq_bpm', bpmInput.value);
+        localStorage.setItem('seq_program', currentProgram);
+        localStorage.setItem('seq_text', editor.value);
+        localStorage.setItem('seq_master_vol', masterVolInput.value);
+        localStorage.setItem('seq_metronome', metronomeCheck.checked);
+
+        this.setInstrument(currentProgram, true);
+        if (Array.isArray(data.noteInstruments)) {
+          syncTokens(true, data.noteInstruments);
+        } else {
+          syncTokens(true);
+        }
+
+        if (isReady && synth) {
+          if (currentProgram !== 128) synth.programChange(15, currentProgram);
+          updateMixerForCurrentTrack();
+        }
+        setStatus('ready', '工程导入成功！');
+      } catch (err) {
+        window.appAlert('导入失败：文件格式不正确或已损坏。\n' + err.message, '错误');
+      }
+    },
+
+    /* ------- 统一输入入口 ------- */
+    handleVirtualInput(key, isRepeat = false) {
+      const isPreview = isPreviewOpen;
+      const targetEditor = isPreview ? this.dom.previewEditor : this.dom.editor;
+      const otherEditor = isPreview ? this.dom.editor : this.dom.previewEditor;
+      
+      const start = targetEditor.selectionStart;
+      const end = targetEditor.selectionEnd;
+
+      if (key === 'copy') {
+        const sel = targetEditor.value.substring(start, end) || targetEditor.value;
+        if (sel) {
+          VirtualKeyboard.clipboard = sel;
+          try { navigator.clipboard.writeText(sel).catch(() => {}); } catch (e) {}
+        }
+        return;
+      }
+
+      if (key === 'paste') {
+        if (VirtualKeyboard.clipboard) {
+          targetEditor.value = targetEditor.value.substring(0, start) + VirtualKeyboard.clipboard + targetEditor.value.substring(end);
+          const pos = start + VirtualKeyboard.clipboard.length;
+          targetEditor.setSelectionRange(pos, pos);
+        } else {
+          try {
+            navigator.clipboard.readText().then((text) => {
+              if (!text) return;
+              const s = targetEditor.selectionStart;
+              const e2 = targetEditor.selectionEnd;
+              targetEditor.value = targetEditor.value.substring(0, s) + text + targetEditor.value.substring(e2);
+              const pos = s + text.length;
+              targetEditor.setSelectionRange(pos, pos);
+              
+              otherEditor.value = targetEditor.value;
+              checkInputValidity(targetEditor.value);
+              syncTokens();
+              saveText();
+            }).catch(() => {});
+          } catch (e) {}
+        }
+        if (!VirtualKeyboard.clipboard) return;
+      } else if (key === '()') {
+        targetEditor.value = targetEditor.value.substring(0, start) + '()' + targetEditor.value.substring(end);
+        targetEditor.setSelectionRange(start + 1, start + 1);
+      } else if (key === '^[]') {
+        targetEditor.value = targetEditor.value.substring(0, start) + '^[]' + targetEditor.value.substring(end);
+        targetEditor.setSelectionRange(start + 2, start + 2);
+      } else if (key === '退格') {
+        if (start === end && start > 0) {
+          targetEditor.value = targetEditor.value.substring(0, start - 1) + targetEditor.value.substring(end);
+          targetEditor.setSelectionRange(start - 1, start - 1);
+        } else if (start !== end) {
+          targetEditor.value = targetEditor.value.substring(0, start) + targetEditor.value.substring(end);
+          targetEditor.setSelectionRange(start, start);
+        }
+      } else if (key === '<') {
+        const newPos = Math.max(0, start - 1);
+        targetEditor.setSelectionRange(newPos, newPos);
+        return;
+      } else if (key === '>') {
+        const newPos = Math.min(targetEditor.value.length, start + 1);
+        targetEditor.setSelectionRange(newPos, newPos);
+        return;
+      } else {
+        targetEditor.value = targetEditor.value.substring(0, start) + key + targetEditor.value.substring(end);
+        targetEditor.setSelectionRange(start + key.length, start + key.length);
+        if (key >= '1' && key <= '7') {
+          let oct = 0;
+          let j = start - 1;
+          const value = targetEditor.value;
+          while (j >= 0 && (value[j] === '+' || value[j] === '-')) {
+            oct += value[j] === '+' ? 1 : -1;
+            j--;
+          }
+          const prefix = oct > 0 ? '+'.repeat(oct) : (oct < 0 ? '-'.repeat(-oct) : '');
+          fireLiveNote(prefix + key);
+        }
+      }
+
+      otherEditor.value = targetEditor.value;
+
+      if (isRepeat) {
+        // 如果是长按连发，不立即同步，交由松手时统一同步，避免高频渲染卡顿
+        clearTimeout(this._vkSyncTimer);
+        this._vkSyncTimer = setTimeout(() => {
+          checkInputValidity(targetEditor.value);
+          syncTokens();
+          saveText();
+        }, 100);
+      } else {
+        // 单次输入，立即同步
+        checkInputValidity(targetEditor.value);
+        syncTokens();
+        saveText();
+      }
+    },
+
+    /* ------- 初始化 ------- */
+
+    async initApp() {
+      this.dom.previewEditor.value = this.dom.editor.value;
+
+      this.setInstrument(currentProgram, true);
+      syncTokens(true);
+      setStatus('loading', '正在检查本地音色库…');
+
+      let cachedBuf = null;
+      try {
+        cachedBuf = await withTimeout(loadFromCache(), 3000, '读取本地缓存');
+      } catch (err) {
+        console.warn('缓存读取失败或超时:', err);
+      }
+
+      if (cachedBuf) {
+        setStatus('loading', '发现缓存，加载音色中…');
+        await initSynth(cachedBuf, false);
+        return;
+      }
+
+      setStatus('loading', '正在加载内置音色库…');
+      try {
+        const response = await fetch('./default.sf2');
+        if (!response.ok) throw new Error('内置音色库加载失败');
+        const sfBuffer = await response.arrayBuffer();
+        await initSynth(sfBuffer, true);
+      } catch (e) {
+        console.error('内置加载失败，回退到手动选择', e);
+        setStatus('', '请选择音色库文件');
+        this.dom.fileRow.style.display = 'flex';
+      }
+    }
+  };
+
+  /* ============================================================
+   * 状态辅助
+   * ============================================================ */
+
+  let statusTimeout = null;
+
+  function setStatus(type, msg) {
+    const { statusDot, statusText } = App.dom;
+    statusDot.className = 'status-dot ' + type;
+    statusText.textContent = msg;
+  }
+
+  function showError(msg) {
+    const { statusDot, statusText } = App.dom;
+    clearTimeout(statusTimeout);
+    statusDot.className = 'status-dot error';
+    statusText.textContent = msg;
+    statusTimeout = setTimeout(() => {
+      statusDot.className = isReady ? 'status-dot ready' : 'status-dot';
+      statusText.textContent = isReady ? '就绪' : '请选择音色库文件';
+    }, 3000);
+  }
+
+  function checkInputValidity(text) {
+    let hasInvalid = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (!/[1-7\.\+\-\(\)\[\]\^ \n\r（）【】＾。＋－０-９\|｜]/.test(ch)) {
+        if (ch >= '0' && ch <= '9') {
+          const lastOpen = text.lastIndexOf('[');
+          const lastClose = text.lastIndexOf(']');
+          if (lastOpen === -1 || (lastClose !== -1 && lastOpen < lastClose)) {
+            hasInvalid = true;
+          }
+        } else {
+          hasInvalid = true;
+        }
+      }
+    }
+    if (hasInvalid) showError('非法字符已输入，可能导致解析错误');
+  }
+
+  let saveTextTimer = null;
+  function saveText() {
+    clearTimeout(saveTextTimer);
+    saveTextTimer = setTimeout(() => localStorage.setItem('seq_text', App.dom.editor.value), 800);
+  }
+
+  function getEffectiveBPM() {
+    let bpm = parseFloat(App.dom.bpmInput.value);
+    if (!isFinite(bpm)) bpm = 120;
+    if (App.dom.bpmX4Check.checked) bpm = bpm * 4;
+    return Math.min(1000 * 4, Math.max(20, bpm));
+  }
+
+  /* ============================================================
+   * 时间与进度
+   * ============================================================ */
+
+  function updateTotalTime() {
+    const { totalTimeEl, previewTotalTime, progressBar, previewProgress } = App.dom;
+    if (!tokens.length) {
+      totalDuration = 0;
+      totalTimeEl.textContent = '00:00';
+      previewTotalTime.textContent = '00:00';
+      progressBar.max = 100;
+      previewProgress.max = 100;
+      progressBar.value = 0;
+      previewProgress.value = 0;
+      return;
+    }
+    beatDur = 60 / getEffectiveBPM();
+    totalDuration = tokens.length * beatDur;
+    const timeStr = formatTime(totalDuration);
+    totalTimeEl.textContent = timeStr;
+    previewTotalTime.textContent = timeStr;
+    progressBar.max = tokens.length;
+    previewProgress.max = tokens.length;
+  }
+
+  function handleProgressChange(val) {
+    isDragging = false;
+    if (playing) stopPlayback();
+    if (val >= tokens.length) {
+      App.dom.progressBar.value = 0;
+      App.dom.previewProgress.value = 0;
+      App.dom.currentTimeEl.textContent = formatTime(0);
+      App.dom.previewCurTime.textContent = formatTime(0);
+      return;
+    }
+    play(null, val);
+  }
+
+  function bindDrag(el) {
+    ['pointerdown', 'touchstart'].forEach((ev) => el.addEventListener(ev, () => { isDragging = true; }, { passive: true }));
+    ['pointerup', 'touchend', 'pointercancel', 'touchcancel'].forEach((ev) => el.addEventListener(ev, () => { isDragging = false; }, { passive: true }));
+  }
+
+  /* ============================================================
+   * 乐谱同步与渲染
+   * ============================================================ */
+
+  function syncTokens(forceFull = false, presetInsts = null) {
+    const editor = App.dom.editor;
+    const parts = parseParts(editor.value);
+
+    if (presetInsts) {
+      let ni = 0;
+      parts.forEach((p) => {
+        if (p.type === 'note') {
+          p.inst = (presetInsts[ni] !== undefined && presetInsts[ni] !== null) ? presetInsts[ni] : currentProgram;
+          ni++;
+        }
+      });
+    } else {
+      const newNotes = parts.filter((p) => p.type === 'note');
+      const oldNotes = currentParts.filter((p) => p.type === 'note');
+
+      let map = new Map();
+      if (!forceFull) {
+        const a = oldNotes.map((p) => p.text);
+        const b = newNotes.map((p) => p.text);
+        if (a.join('') === b.join('')) {
+          for (let i = 0; i < newNotes.length; i++) map.set(i, i);
+        } else if (newNotes.length < 5000) {
+          map = lcsMap(a, b);
+        }
+      }
+
+      let k = 0;
+      parts.forEach((p) => {
+        if (p.type === 'note') {
+          if (map.has(k)) {
+            p.inst = oldNotes[map.get(k)].inst;
+          } else if (oldNotes[k] !== undefined && oldNotes[k].text === p.text) {
+            p.inst = oldNotes[k].inst;
+          } else {
+            p.inst = currentProgram;
+          }
+          k++;
+        } else {
+          p.inst = undefined;
+        }
+      });
+    }
+
+    currentParts = parts;
+
+    let pitchSum = 0;
+    let pitchCount = 0;
+    currentParts.forEach((p) => {
+      if (p.type === 'note' && p.text !== '.' && p.text !== '。') {
+        const semi = parseNote(p.text);
+        if (semi !== null) {
+          pitchSum += (BASE_MIDI + semi);
+          pitchCount++;
+        }
+      }
+    });
+    currentAveragePitch = pitchCount > 0 ? pitchSum / pitchCount : 60;
+
+    tokens = [];
+    let currentToken = [];
+    let inParen = false;
+    currentParts.forEach((p) => {
+      if (p.type === 'ws') return;
+      if (p.type === 'symbol') {
+        if (p.text === '(' || p.text === '（') {
+          if (currentToken.length > 0) { tokens.push(currentToken); currentToken = []; }
+          inParen = true;
+          currentToken.push(p);
+        } else if (p.text === ')' || p.text === '）') {
+          inParen = false;
+          currentToken.push(p);
+          tokens.push(currentToken);
+          currentToken = [];
+        }
+      } else if (p.type === 'note') {
+        if (!inParen) {
+          if (currentToken.length > 0) { tokens.push(currentToken); currentToken = []; }
+          currentToken.push(p);
+          tokens.push(currentToken);
+          currentToken = [];
+        } else {
+          currentToken.push(p);
+        }
+      }
+    });
+    if (currentToken.length > 0) tokens.push(currentToken);
+
+    renderUnderlay();
+    updateLegend();
+    updateTotalTime();
+
+    if (isPreviewOpen) renderPreview();
+  }
+
+  function makeTokenFragment(text, instKey, forPreview) {
+    const styleObj = getInstStyle(instKey);
+    const frag = document.createDocumentFragment();
+    let buf = '';
+    let bufColor = null;
+    let bufDecoColor = null;
+    let bufClass = '';
+
+    const flush = () => {
+      if (!buf.length) return;
+      if (bufColor === null) {
+        frag.appendChild(document.createTextNode(buf));
+      } else {
+        const s = document.createElement('span');
+        s.style.color = bufColor;
+        if (bufDecoColor) s.style.textDecorationColor = bufDecoColor;
+        if (bufClass) s.className = bufClass;
+        s.textContent = buf;
+        frag.appendChild(s);
+      }
+      buf = '';
+      bufColor = null;
+      bufDecoColor = null;
+      bufClass = '';
+    };
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (/\s/.test(ch)) {
+        flush();
+        frag.appendChild(document.createTextNode(ch));
+        continue;
+      }
+      const isSym = (ch === '(' || ch === ')' || ch === '.' || ch === '[' || ch === ']' ||
+                     ch === '^' || ch === '（' || ch === '）' || ch === '【' || ch === '】' ||
+                     ch === '＾' || ch === '。' || ch === '|' || ch === '｜');
+      const c = isSym ? NOTE_SYM_COLOR : styleObj.textColor;
+      const dc = isSym ? null : styleObj.decoColor;
+      const cls = isSym ? '' : styleObj.className;
+      if (c !== bufColor || dc !== bufDecoColor || cls !== bufClass) {
+        flush();
+        bufColor = c;
+        bufDecoColor = dc;
+        bufClass = cls;
+      }
+      buf += ch;
+    }
+    flush();
+    return frag;
+  }
+
+  function makeVelSpan(vel) {
+    if (!vel) return null;
+    const span = document.createElement('span');
+    span.className = 'vel-marker';
+    span.textContent = vel.type + (vel.val !== null && vel.val !== undefined ? `[${vel.val}]` : '');
+    return span;
+  }
+
+  function renderUnderlay() {
+    const hlContent = App.hlContent;
+    hlContent.innerHTML = '';
+    currentParts.forEach((p) => {
+      if (p.type === 'ws') {
+        hlContent.appendChild(document.createTextNode(p.text));
+      } else if (p.type === 'symbol') {
+        const s = document.createElement('span');
+        s.style.color = NOTE_SYM_COLOR;
+        s.textContent = p.text;
+        hlContent.appendChild(s);
+        if (p.chordVel) {
+          const v = makeVelSpan(p.chordVel);
+          if (v) hlContent.appendChild(v);
+        }
+      } else {
+        hlContent.appendChild(makeTokenFragment(p.text, p.inst, false));
+        const v = makeVelSpan(p.vel);
+        if (v) hlContent.appendChild(v);
+      }
+    });
+    App.hlLayer.scrollTop = App.dom.editor.scrollTop;
+    App.hlLayer.scrollLeft = App.dom.editor.scrollLeft;
+  }
+
+  function renderPreview() {
+    const fragment = document.createDocumentFragment();
+    const hlContent = App.dom.previewHlContent;
+    tokenEls = [];
+
+    if (!currentParts.length) {
+      hlContent.innerHTML = '';
+      return;
+    }
+
+    let inParen = false;
+    let currentOuter = null;
+
+    currentParts.forEach((p) => {
+      if (p.type === 'ws') {
+        fragment.appendChild(document.createTextNode(p.text));
+      } else if (p.type === 'symbol') {
+        if (p.text === '(' || p.text === '（') {
+          inParen = true;
+          currentOuter = document.createElement('span');
+          currentOuter.className = 'tok';
+          fragment.appendChild(currentOuter);
+          tokenEls.push(currentOuter);
+
+          const s = document.createElement('span');
+          s.style.color = NOTE_SYM_COLOR;
+          s.textContent = p.text;
+          currentOuter.appendChild(s);
+          if (p.chordVel) {
+            const v = makeVelSpan(p.chordVel);
+            if (v) currentOuter.appendChild(v);
+          }
+        } else if (p.text === ')' || p.text === '）') {
+          inParen = false;
+          const s = document.createElement('span');
+          s.style.color = NOTE_SYM_COLOR;
+          s.textContent = p.text;
+          currentOuter.appendChild(s);
+          if (p.chordVel) {
+            const v = makeVelSpan(p.chordVel);
+            if (v) currentOuter.appendChild(v);
+          }
+        } else if (p.text === '|' || p.text === '｜') {
+          if (currentOuter) currentOuter = null;
+          const s = document.createElement('span');
+          s.style.color = NOTE_SYM_COLOR;
+          s.textContent = p.text;
+          fragment.appendChild(s);
+        } else {
+          const s = document.createElement('span');
+          s.style.color = NOTE_SYM_COLOR;
+          s.textContent = p.text;
+          if (currentOuter && inParen) currentOuter.appendChild(s);
+          else fragment.appendChild(s);
+        }
+      } else if (p.type === 'note') {
+        if (!inParen) {
+          currentOuter = document.createElement('span');
+          currentOuter.className = 'tok';
+          fragment.appendChild(currentOuter);
+          tokenEls.push(currentOuter);
+          currentOuter.appendChild(makeTokenFragment(p.text, p.inst, true));
+          const v = makeVelSpan(p.vel);
+          if (v) currentOuter.appendChild(v);
+        } else {
+          currentOuter.appendChild(makeTokenFragment(p.text, p.inst, true));
+          const v = makeVelSpan(p.vel);
+          if (v) currentOuter.appendChild(v);
+        }
+      }
+    });
+
+    hlContent.innerHTML = '';
+    hlContent.appendChild(fragment);
+
+    if (playing) setHighlight(currentIdx);
+  }
+
+  function setHighlight(idx) {
+    for (let i = 0; i < tokenEls.length; i++) {
+      tokenEls[i].classList.toggle('active', i === idx);
+      tokenEls[i].classList.toggle('dim', idx !== -1 && i !== idx);
+    }
+  }
+
+  function clearHighlight() {
+    for (let i = 0; i < tokenEls.length; i++) tokenEls[i].classList.remove('active', 'dim');
+  }
+
+  function scrollToToken(idx) {
+    if (idx < 0 || idx >= tokenEls.length) return;
+    const el = tokenEls[idx];
+    if (!el) return;
+    const layer = App.dom.previewHlLayer;
+    const elTop = el.offsetTop;
+    const elHeight = el.offsetHeight;
+    const viewTop = layer.scrollTop;
+    const viewHeight = layer.clientHeight;
+    const padding = 80;
+    if (elTop < viewTop) layer.scrollTo({ top: elTop - padding, behavior: 'smooth' });
+    else if (elTop + elHeight > viewTop + viewHeight - padding) {
+      layer.scrollTo({ top: elTop + elHeight - viewHeight + padding, behavior: 'smooth' });
+    }
+  }
+
+  /* ============================================================
+   * 音轨列表 & 混音台
+   * ============================================================ */
+
+  function updateLegend() {
+    const { trackListEl, mixerControlsEl } = App.dom;
+    const used = new Set();
+    currentParts.forEach((p) => {
+      if (p.type === 'note' && p.inst !== undefined) used.add(p.inst);
+    });
+
+    trackListEl.innerHTML = '';
+    if (used.size === 0) {
+      trackListEl.innerHTML = '<div style="font-size: 13px; color: var(--text-dim); text-align: center; padding: 20px 0;">还没有输入音符</div>';
+      mixerControlsEl.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0;">请先在音轨列表<br>选中一个乐器</div>';
+      return;
+    }
+
+    used.forEach((p) => {
+      const inst = GM_INSTRUMENTS.find((x) => x.p === p) || { name: '未知乐器' };
+      const styleObj = getInstStyle(p);
+      const item = document.createElement('div');
+      item.className = 'track-item';
+      if (p === currentProgram) item.classList.add('selected');
+
+      const nm = document.createElement('span');
+      nm.textContent = inst.name;
+      nm.style.color = styleObj.textColor;
+      nm.style.textDecorationColor = styleObj.decoColor;
+      nm.className = styleObj.className;
+      item.appendChild(nm);
+
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.track-item').forEach((el) => el.classList.remove('selected'));
+        item.classList.add('selected');
+        App.setInstrument(p);
+        updateMixerForCurrentTrack();
+      });
+
+      trackListEl.appendChild(item);
+    });
+
+    if (used.has(currentProgram)) {
+      updateMixerForCurrentTrack();
+    } else {
+      const firstInst = Array.from(used)[0];
+      App.setInstrument(firstInst, true);
+      const firstEl = trackListEl.firstChild;
+      if (firstEl) firstEl.classList.add('selected');
+      updateMixerForCurrentTrack();
+    }
+  }
+
+  function updateMixerForCurrentTrack() {
+    const p = currentProgram;
+    if (p === undefined) return;
+
+    const inst = GM_INSTRUMENTS.find((x) => x.p === p) || { name: '未知乐器' };
+    const styleObj = getInstStyle(p);
+
+    if (!instrumentParams[p]) {
+      instrumentParams[p] = { ...DEFAULT_PARAMS };
+    } else {
+      instrumentParams[p] = { ...DEFAULT_PARAMS, ...instrumentParams[p] };
+    }
+    
+    const prm = instrumentParams[p];
+
+    const mixerControlsEl = App.dom.mixerControlsEl;
+    mixerControlsEl.innerHTML = `
+      <div style="font-size: 13px; font-weight: bold; color: ${styleObj.textColor}; text-decoration-color: ${styleObj.decoColor}; text-align: center; margin-bottom: 15px;" class="${styleObj.className}">
+        ${inst.name}
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label"><span>音量 (Volume)</span><span id="val-vol">${prm.vol}</span></div>
+        <input type="range" class="fader" id="sl-vol" min="0" max="127" value="${prm.vol}">
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label" style="align-items: center;">
+          <span>声像 (Pan)</span>
+          <label class="mini-toggle">
+            <input type="checkbox" id="sl-pitchpan" ${prm.pitchPan ? 'checked' : ''}> 自动
+          </label>
+          <span id="val-pan">${prm.pan === 64 ? '居中' : (prm.pan < 64 ? 'L' : 'R')}</span>
+        </div>
+        <input type="range" class="fader" id="sl-pan" min="0" max="127" value="${prm.pan}" ${prm.pitchPan ? 'disabled' : ''}>
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label"><span>混响 (Reverb)</span><span id="val-reverb">${prm.reverb}</span></div>
+        <input type="range" class="fader" id="sl-reverb" min="0" max="127" value="${prm.reverb}">
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label"><span>合唱 (Chorus)</span><span id="val-chorus">${prm.chorus}</span></div>
+        <input type="range" class="fader" id="sl-chorus" min="0" max="127" value="${prm.chorus}">
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label"><span>亮度 / EQ (Bright)</span><span id="val-bright">${prm.bright}</span></div>
+        <input type="range" class="fader" id="sl-bright" min="0" max="127" value="${prm.bright}">
+      </div>
+
+      <div class="fader-group">
+        <div class="fader-label"><span>共振 / EQ (Resonance)</span><span id="val-resonance">${prm.resonance}</span></div>
+        <input type="range" class="fader" id="sl-resonance" min="0" max="127" value="${prm.resonance}">
+      </div>
+    `;
+
+    const bindFader = (id, paramKey, ccNum, formatFn) => {
+      const sl = document.getElementById(id);
+      const valEl = document.getElementById(`val-${paramKey}`);
+      if (!sl) return;
+      sl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        instrumentParams[p][paramKey] = val;
+        if (valEl) valEl.textContent = formatFn ? formatFn(val) : val;
+        if (playing && currentChannelMap[p] !== undefined) {
+          try { synth.controllerChange(currentChannelMap[p], ccNum, val); } catch (e) { /* 忽略 */ }
+        }
+      });
+    };
+
+    bindFader('sl-vol', 'vol', 7, null);
+    bindFader('sl-pan', 'pan', 10, (v) => v === 64 ? '居中' : (v < 64 ? 'L' : 'R'));
+    bindFader('sl-reverb', 'reverb', 91, null);
+    bindFader('sl-chorus', 'chorus', 93, null);
+    bindFader('sl-bright', 'bright', 74, null);
+    bindFader('sl-resonance', 'resonance', 71, null);
+
+    const pitchPanCheck = document.getElementById('sl-pitchpan');
+    pitchPanCheck.addEventListener('change', (e) => {
+      instrumentParams[p].pitchPan = e.target.checked;
+      document.getElementById('sl-pan').disabled = e.target.checked;
+      if (playing && currentChannelMap[p] !== undefined) {
+        try { synth.controllerChange(currentChannelMap[p], 10, instrumentParams[p].pan); } catch (e) { /* 忽略 */ }
+      }
+    });
+  }
+
+  /* ============================================================
+   * IndexedDB 音色库缓存
+   * ============================================================ */
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let req;
+      try { req = indexedDB.open(DB_NAME, 1); } catch (e) { return reject(e); }
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      req.onsuccess = (e) => { if (!settled) { settled = true; resolve(e.target.result); } };
+      req.onerror = (e) => { if (!settled) { settled = true; reject(e.target.error || new Error('IndexedDB 打开失败')); } };
+      req.onblocked = () => { if (!settled) { settled = true; reject(new Error('IndexedDB 被其他标签页阻塞')); } };
+    });
+  }
+
+  async function saveToCache(buf) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put(buf, CACHE_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async function loadFromCache() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const req = tx.objectStore(DB_STORE).get(CACHE_KEY);
+      req.onsuccess = (e) => resolve(e.target.result || null);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async function clearCache() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).delete(CACHE_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  /* ============================================================
+   * 音频合成器
+   * ============================================================ */
+
+  function forceWakeAudio() {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx) {
+      try {
+        const silentBuffer = audioCtx.createBuffer(1, 1, 22050);
+        const source = audioCtx.createBufferSource();
+        source.buffer = silentBuffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+      } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  function getPitchPan(midiNote, basePan) {
+    const offset = (midiNote - currentAveragePitch) * 2;
+    return Math.max(0, Math.min(127, Math.round(basePan + offset)));
+  }
+
+  function applyChannelParams(channel, prm) {
+    synth.controllerChange(channel, 7, prm.vol);
+    synth.controllerChange(channel, 91, prm.reverb);
+    synth.controllerChange(channel, 93, prm.chorus);
+    synth.controllerChange(channel, 74, prm.bright);
+    synth.controllerChange(channel, 71, prm.resonance);
+  }
+
+  function fireLiveNote(noteStr) {
+    if (!isReady || !synth || playing) return;
+    forceWakeAudio();
+
+    const channel = currentProgram === 128 ? 9 : 15;
+    try {
+      if (currentProgram !== 128) synth.programChange(channel, currentProgram);
+
+      const prm = instrumentParams[currentProgram] || DEFAULT_PARAMS;
+      applyChannelParams(channel, prm);
+
+      const semi = parseNote(noteStr);
+      if (semi === null) return;
+
+      const midiNote = (currentProgram === 128) ? (DRUM_MIDI_MAP[semi] || 36) : (BASE_MIDI + semi);
+      if (midiNote < 0 || midiNote > 127) return;
+
+      let targetPan = prm.pan;
+      if (prm.pitchPan) targetPan = getPitchPan(midiNote, 64);
+      synth.controllerChange(channel, 10, targetPan);
+
+      synth.noteOn(channel, midiNote, 100);
+      setTimeout(() => { try { synth.noteOff(channel, midiNote); } catch (e) { /* 忽略 */ } }, 300);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function playTestNote() {
+    if (!isReady || !synth || playing) return;
+    forceWakeAudio();
+    try {
+      const channel = currentProgram === 128 ? 9 : 15;
+      if (currentProgram !== 128) synth.programChange(channel, currentProgram);
+
+      const prm = instrumentParams[currentProgram] || DEFAULT_PARAMS;
+      applyChannelParams(channel, prm);
+      synth.controllerChange(channel, 10, prm.pan);
+
+      const note = currentProgram === 128 ? 36 : BASE_MIDI;
+      synth.noteOn(channel, note, 100);
+      setTimeout(() => { try { synth.noteOff(channel, note); } catch (e) { /* 忽略 */ } }, 500);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  async function initSynth(sfBuffer, needSave = true) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      await audioCtx.audioWorklet.addModule('./spessasynth_processor.min.js');
+
+      setStatus('loading', '正在创建合成器…');
+      synth = new window.WorkletSynthesizer(audioCtx);
+
+      masterGainNode = audioCtx.createGain();
+      masterGainNode.gain.value = parseFloat(App.dom.masterVolInput.value);
+
+      limiterNode = audioCtx.createDynamicsCompressor();
+      limiterNode.threshold.value = -6;
+      limiterNode.knee.value = 0;
+      limiterNode.ratio.value = 20;
+      limiterNode.attack.value = 0.003;
+      limiterNode.release.value = 0.1;
+
+      metronomeGainNode = audioCtx.createGain();
+      metronomeGainNode.gain.value = 1.0;
+      metronomeGainNode.connect(audioCtx.destination);
+
+      synth.connect(masterGainNode);
+      masterGainNode.connect(limiterNode);
+      limiterNode.connect(audioCtx.destination);
+
+      await synth.soundBankManager.addSoundBank(sfBuffer, 'main');
+
+      isReady = true;
+      App.dom.playBtn.disabled = false;
+      App.dom.previewPlayBtn.disabled = false;
+      setStatus('ready', '就绪');
+      App.dom.fileRow.style.display = 'none';
+
+      if (needSave) {
+        try { await saveToCache(sfBuffer); } catch (e) { console.warn('缓存失败', e); }
+      }
+
+      playTestNote();
+    } catch (err) {
+      console.error('[initSynth] 失败:', err);
+      setStatus('error', '音色库加载失败：' + (err && err.message ? err.message : err));
+      App.dom.fileRow.style.display = 'flex';
+    }
+  }
+
+  /* ============================================================
+   * 播放控制
+   * ============================================================ */
+
+  function cleanAudioState() {
+    onTimers.forEach(clearTimeout);
+    offTimers.forEach(clearTimeout);
+    onTimers = [];
+    offTimers = [];
+    scheduledMetronomeNodes.forEach((item) => {
+      try { item.osc.stop(); item.osc.disconnect(); item.gain.disconnect(); } catch (e) { /* 忽略 */ }
+    });
+    scheduledMetronomeNodes = [];
+    if (synth) {
+      try { synth.stopAll(true); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  function playClick(isStrong, time) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = isStrong ? 1500 : 1000;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.8, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    osc.connect(gain);
+    gain.connect(metronomeGainNode);
+    osc.start(time);
+    osc.stop(time + 0.1);
+    scheduledMetronomeNodes.push({ osc, gain });
+  }
+
+  function play(forceExportMode = null, startIndex = 0) {
+    if (playing || !isReady || !tokens.length) return;
+
+    forceWakeAudio();
+
+    // ★ C1修复：播放前预热音频引擎，防止第一拍因为引擎冷启动而延迟
+    try {
+      const warmCh = currentProgram === 128 ? 9 : 15;
+      if (currentProgram !== 128) synth.programChange(warmCh, currentProgram);
+      synth.noteOn(warmCh, BASE_MIDI, 1);
+      synth.noteOff(warmCh, BASE_MIDI);
+    } catch (e) {}
+
+    if (!forceExportMode && !isPreviewOpen) {
+      isPreviewOpen = true;
+      App.dom.previewModal.classList.add('show');
+      App.dom.previewEditor.value = App.dom.editor.value;
+      // ★ C2修复：主界面点播放时不需要再调用 syncTokens，因为输入时已经同步过了，删掉以加快响应
+      renderPreview(); 
+    }
+
+    App.dom.previewEditor.classList.add('playing-locked');
+
+    cleanAudioState();
+    if (forceExportMode) {
+      startRecording(forceExportMode);
+      App.dom.progressBar.disabled = true;
+      App.dom.previewProgress.disabled = true;
+    } else {
+      App.dom.progressBar.disabled = false;
+      App.dom.previewProgress.disabled = false;
+    }
+
+    beatDur = 60 / getEffectiveBPM();
+    playStartIdx = startIndex;
+    if (playStartIdx >= tokens.length) playStartIdx = 0;
+
+    const usedInsts = new Set();
+    tokens.forEach((beat, i) => {
+      if (i >= playStartIdx) {
+        beat.forEach((n) => {
+          if (n.inst !== undefined) usedInsts.add(n.inst);
+        });
+      }
+    });
+
+    if (usedInsts.size > 14) {
+      console.warn('[Resonor] 单曲使用超过 14 种乐器，多出的乐器会共用 MIDI 通道，可能发生混响错乱。');
+    }
+
+    currentChannelMap = {};
+    let ch = 0;
+    usedInsts.forEach((instP) => {
+      let c;
+      if (instP === 128) c = 9;
+      else {
+        if (ch === 9 || ch === 15) ch++;
+        c = ch % 16;
+        ch++;
+      }
+      currentChannelMap[instP] = c;
+      try {
+        synth.programChange(c, instP);
+        const prm = instrumentParams[instP] || DEFAULT_PARAMS;
+        applyChannelParams(c, prm);
+        synth.controllerChange(c, 10, prm.pan);
+      } catch (e) { /* 忽略 */ }
+    });
+
+    const now = audioCtx.currentTime;
+    // ★ C1修复：缩短提前量，从 0.15 缩至 0.05，配合上面的预热，彻底解决首拍延迟
+    startTime = now + 0.05;
+    audioEndTime = startTime + (tokens.length - playStartIdx) * beatDur + 1.5;
+
+    const useMetronome = App.dom.metronomeCheck.checked && !forceExportMode;
+
+    tokens.forEach((beat, i) => {
+      if (i < playStartIdx) return;
+      const beatStartSec = startTime + (i - playStartIdx) * beatDur;
+      const delayMs = (beatStartSec - now) * 1000;
+
+      if (useMetronome) playClick(i % 4 === 0, beatStartSec);
+
+      let chordVel = null;
+      for (let b = 0; b < beat.length; b++) {
+        const bPart = beat[b];
+        if (bPart && bPart.type === 'symbol' && bPart.chordVel) {
+          chordVel = bPart.chordVel;
+          break;
+        }
+      }
+
+      beat.forEach((noteObj) => {
+        if (noteObj.type !== 'note') return;
+        const inst = noteObj.inst;
+        const semi = parseNote(noteObj.text);
+        if (semi === null) return;
+
+        const sourceVel = noteObj.vel || chordVel;
+        let vel = DEFAULT_NORMAL_VEL;
+        if (sourceVel && sourceVel.val !== null && sourceVel.val !== undefined && !isNaN(sourceVel.val)) {
+          vel = Math.max(1, Math.min(127, sourceVel.val));
+        }
+
+        const channel = currentChannelMap[inst];
+        const midiNote = (inst === 128) ? (DRUM_MIDI_MAP[semi] || 36) : (BASE_MIDI + semi);
+        if (midiNote < 0 || midiNote > 127) return;
+
+        const tOn = setTimeout(() => {
+          try {
+            const prm = instrumentParams[inst] || DEFAULT_PARAMS;
+            applyChannelParams(channel, prm);
+            
+            let targetPan = prm.pan;
+            if (prm.pitchPan) targetPan = getPitchPan(midiNote, 64);
+            synth.controllerChange(channel, 10, targetPan);
+            synth.noteOn(channel, midiNote, vel);
+          } catch (e) { /* 忽略 */ }
+        }, delayMs);
+
+        const tOff = setTimeout(() => {
+          try { synth.noteOff(channel, midiNote); } catch (e) { /* 忽略 */ }
+        }, delayMs + (inst === 128 ? 0.1 : beatDur + 1.5) * 1000);
+
+        onTimers.push(tOn);
+        offTimers.push(tOff);
+      });
+    });
+
+    playing = true;
+    currentIdx = -1;
+
+    App.dom.playBtn.disabled = true;
+    App.dom.stopBtn.disabled = false;
+    App.dom.previewPlayBtn.disabled = true;
+    App.dom.previewStopBtn.disabled = false;
+    setHighlight(-1);
+    App.dom.progressBar.value = playStartIdx;
+    App.dom.previewProgress.value = playStartIdx;
+    App.dom.currentTimeEl.textContent = formatTime(playStartIdx * beatDur);
+    App.dom.previewCurTime.textContent = formatTime(playStartIdx * beatDur);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function tick() {
+    if (!playing) return;
+    const elapsed = audioCtx.currentTime - startTime;
+    const idx = Math.floor(elapsed / beatDur) + playStartIdx;
+
+    if (idx >= tokens.length) {
+      if (audioCtx.currentTime >= audioEndTime) {
+        finishPlayback();
+        return;
+      }
+      if (currentIdx !== -1) {
+        currentIdx = -1;
+        clearHighlight();
+        if (!isDragging) {
+          App.dom.progressBar.value = tokens.length;
+          App.dom.previewProgress.value = tokens.length;
+          App.dom.currentTimeEl.textContent = formatTime(totalDuration);
+          App.dom.previewCurTime.textContent = formatTime(totalDuration);
+        }
+      }
+      rafId = requestAnimationFrame(tick);
+      return;
+    }
+
+    if (idx !== currentIdx && idx >= 0) {
+      currentIdx = idx;
+      setHighlight(idx);
+      scrollToToken(idx);
+      if (!isDragging) {
+        App.dom.progressBar.value = idx;
+        App.dom.previewProgress.value = idx;
+        const timeStr = formatTime(idx * beatDur);
+        App.dom.currentTimeEl.textContent = timeStr;
+        App.dom.previewCurTime.textContent = timeStr;
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function finishPlayback() {
+    playing = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    onTimers = [];
+    offTimers = [];
+    scheduledMetronomeNodes.forEach((item) => {
+      try { item.osc.stop(); item.osc.disconnect(); item.gain.disconnect(); } catch (e) { /* 忽略 */ }
+    });
+    scheduledMetronomeNodes = [];
+    currentIdx = -1;
+    clearHighlight();
+
+    App.dom.playBtn.disabled = false;
+    App.dom.stopBtn.disabled = true;
+    App.dom.previewPlayBtn.disabled = false;
+    App.dom.previewStopBtn.disabled = true;
+    App.dom.progressBar.value = 0;
+    App.dom.previewProgress.value = 0;
+    App.dom.currentTimeEl.textContent = formatTime(0);
+    App.dom.previewCurTime.textContent = formatTime(0);
+    App.dom.progressBar.disabled = false;
+    App.dom.previewProgress.disabled = false;
+    App.dom.previewEditor.classList.remove('playing-locked');
+
+    if (exportMode) stopRecording();
+  }
+
+  function stopPlayback() {
+    const stopIdx = currentIdx >= 0 ? currentIdx : playStartIdx;
+    playing = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    cleanAudioState();
+    clearHighlight();
+    currentIdx = -1;
+
+    App.dom.playBtn.disabled = false;
+    App.dom.stopBtn.disabled = true;
+    App.dom.previewPlayBtn.disabled = false;
+    App.dom.previewStopBtn.disabled = true;
+    App.dom.progressBar.value = stopIdx;
+    App.dom.previewProgress.value = stopIdx;
+    const timeStr = formatTime(stopIdx * beatDur);
+    App.dom.currentTimeEl.textContent = timeStr;
+    App.dom.previewCurTime.textContent = timeStr;
+    App.dom.progressBar.disabled = false;
+    App.dom.previewProgress.disabled = false;
+    App.dom.previewEditor.classList.remove('playing-locked');
+
+    if (exportMode) stopRecording();
+  }
+
+  /* ============================================================
+   * 录音与导出
+   * ============================================================ */
+
+  function startRecording(mode) {
+    exportMode = mode;
+    pcmBuffers = [];
+
+    if (mode === 'wav' || mode === 'mp3') {
+      const bufferSize = 4096;
+      recorderNode = audioCtx.createScriptProcessor(bufferSize, 2, 2);
+      recorderNode.onaudioprocess = function (e) {
+        pcmBuffers.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        pcmBuffers.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+      };
+      silentGainNode = audioCtx.createGain();
+      silentGainNode.gain.value = 0;
+      limiterNode.connect(recorderNode);
+      recorderNode.connect(silentGainNode);
+      silentGainNode.connect(audioCtx.destination);
+    }
+  }
+
+  function stopRecording() {
+    if (exportMode === 'wav' || exportMode === 'mp3') {
+      if (recorderNode) {
+        try { limiterNode.disconnect(recorderNode); } catch (e) { /* 忽略 */ }
+        try { recorderNode.disconnect(); } catch (e) { /* 忽略 */ }
+        recorderNode = null;
+      }
+      if (silentGainNode) {
+        try { silentGainNode.disconnect(); } catch (e) { /* 忽略 */ }
+        silentGainNode = null;
+      }
+
+      const leftChannel = [];
+      const rightChannel = [];
+      for (let i = 0; i < pcmBuffers.length; i += 2) leftChannel.push(pcmBuffers[i]);
+      for (let i = 1; i < pcmBuffers.length; i += 2) rightChannel.push(pcmBuffers[i]);
+
+      const totalLength = leftChannel.reduce((acc, buf) => acc + buf.length, 0);
+      const left = new Float32Array(totalLength);
+      const right = new Float32Array(totalLength);
+      let offset = 0;
+      for (let i = 0; i < leftChannel.length; i++) {
+        left.set(leftChannel[i], offset);
+        right.set(rightChannel[i], offset);
+        offset += leftChannel[i].length;
+      }
+
+      if (exportMode === 'wav') {
+        // ★ B2修复：异步处理 WAV，避免卡死
+        (async () => {
+          const blob = await encodeWAV(left, right, audioCtx.sampleRate);
+          const finalName = window.pendingExportName || 'music_lossless.wav';
+          await downloadBlob(blob, finalName).then(() => {
+            resetExportUI();
+          }).catch((e) => {
+            window.appAlert('保存失败: ' + e.message, '错误');
+            resetExportUI();
+          });
+        })();
+      } else if (exportMode === 'mp3') {
+        setStatus('loading', '正在编码 MP3...');
+        setTimeout(async () => {
+          try {
+            const mp3encoder = new lamejs.Mp3Encoder(2, audioCtx.sampleRate, 128);
+            const mp3Data = [];
+            const sampleBlockSize = 1152;
+
+            const l = new Int16Array(left.length);
+            const r = new Int16Array(right.length);
+            for (let i = 0; i < left.length; i++) {
+              l[i] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
+              r[i] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
+            }
+
+            for (let i = 0; i < l.length; i += sampleBlockSize) {
+              const lChunk = l.subarray(i, i + sampleBlockSize);
+              const rChunk = r.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(lChunk, rChunk);
+              if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+              
+              if ((i / sampleBlockSize) % 100 === 0) {
+                const percent = Math.round((i / l.length) * 100);
+                setStatus('loading', `正在编码 MP3... ${percent}%`);
+                await new Promise(r => setTimeout(r, 0));
+              }
+            }
+            const mp3buf = mp3encoder.flush();
+            if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+
+            const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+            
+            setStatus('loading', '正在保存文件...');
+            const finalName = window.pendingExportName || 'music.mp3';
+            await downloadBlob(blob, finalName);
+            resetExportUI();
+          } catch (err) {
+            console.error('MP3 编码失败:', err);
+            window.appAlert('MP3 编码失败，请重试或导出 WAV。', '错误');
+            resetExportUI();
+          }
+        }, 50);
+      }
+    }
+    exportMode = null;
+  }
+
+  async function encodeWAV(left, right, sampleRate) {
+    const numSamples = left.length;
+    const buffer = new ArrayBuffer(44 + numSamples * 4);
+    const view = new DataView(buffer);
+    const writeString = (v, offset, str) => {
+      for (let i = 0; i < str.length; i++) v.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 4, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 2, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, numSamples * 4, true);
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      const l = Math.max(-1, Math.min(1, left[i]));
+      const r = Math.max(-1, Math.min(1, right[i]));
+      view.setInt16(offset, l < 0 ? l * 0x8000 : l * 0x7FFF, true);
+      offset += 2;
+      view.setInt16(offset, r < 0 ? r * 0x8000 : r * 0x7FFF, true);
+      offset += 2;
+
+      // 每 4096 个采样点让出主线程，避免导出 WAV 时 UI 冻结
+      if (i % 4096 === 0) {
+        setStatus('loading', `正在导出 WAV... ${Math.round(i / numSamples * 100)}%`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+    return new Blob([view], { type: 'audio/wav' });
+  }
+
+  // ★ 原生静默保存 (调用 Java 接口)
+  async function downloadBlob(blob, filename) {
+    // 网页调试环境兜底
+    if (!window.AndroidBridge) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      return;
+    }
+
+    // Android 原生环境
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        try {
+          const base64Data = reader.result.split(',')[1];
+          let mimeType = 'application/octet-stream';
+          if (filename.endsWith('.wav')) mimeType = 'audio/wav';
+          else if (filename.endsWith('.mp3')) mimeType = 'audio/mpeg';
+          else if (filename.endsWith('.reson')) mimeType = 'application/octet-stream'; 
+
+          setStatus('loading', '正在保存...');
+
+          const result = window.AndroidBridge.saveToDownloads(base64Data, filename, mimeType);
+          
+          if (result === "SUCCESS") {
+            setStatus('ready', '保存成功！');
+            resolve();
+          } else {
+            setStatus('error', '保存失败');
+            reject(new Error(result));
+          }
+        } catch (err) {
+          setStatus('error', '保存失败');
+          reject(err);
+        }
+      };
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function resetExportUI() {
+    const { exportWavBtn, exportMp3Btn, playBtn, previewPlayBtn, progressBar, previewProgress } = App.dom;
+    exportWavBtn.classList.remove('exporting');
+    exportWavBtn.textContent = '💾 导出 WAV';
+    exportMp3Btn.classList.remove('exporting');
+    exportMp3Btn.textContent = '🎵 导出 MP3';
+    playBtn.disabled = false;
+    previewPlayBtn.disabled = false;
+    progressBar.disabled = false;
+    previewProgress.disabled = false;
+    setStatus('ready', '就绪');
+  }
+
+  /* ============================================================
+   * 欢迎弹窗 & 导出按钮
+   * ============================================================ */
+
+  function initWelcomeModal() {
+    const modal = $('welcomeModal');
+    if (!modal) return;
+    modal.classList.add('show');
+
+    const mainEl = $('welcomeMain');
+    const disclaimerEl = $('disclaimerPage');
+
+    const closeWelcome = () => {
+      modal.classList.remove('show');
+      if (mainEl) mainEl.style.display = 'block';
+      if (disclaimerEl) disclaimerEl.style.display = 'none';
+    };
+
+    $('welcomeCloseBtn').addEventListener('click', closeWelcome);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeWelcome(); });
+
+    $('showDisclaimerLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      if (mainEl) mainEl.style.display = 'none';
+      if (disclaimerEl) disclaimerEl.style.display = 'block';
+    });
+    $('backToWelcomeBtn').addEventListener('click', () => {
+      if (disclaimerEl) disclaimerEl.style.display = 'none';
+      if (mainEl) mainEl.style.display = 'block';
+    });
+  }
+
+  function initExportButtons() {
+    const { exportWavBtn, exportMp3Btn, playBtn, previewPlayBtn } = App.dom;
+
+    exportWavBtn.addEventListener('click', () => {
+      if (!isReady) return window.appAlert('请先加载音色库！', '提示');
+      if (playing) return;
+      
+      Dialog.prompt('请输入导出的 WAV 文件名:', 'music_lossless', '导出 WAV').then((input) => {
+        if (input === null || input.trim() === '') return;
+        const finalName = input.trim().endsWith('.wav') ? input.trim() : input.trim() + '.wav';
+        window.pendingExportName = finalName;
+        
+        exportWavBtn.classList.add('exporting');
+        exportWavBtn.textContent = '正在录制 WAV...';
+        playBtn.disabled = true;
+        previewPlayBtn.disabled = true;
+        play('wav', 0);
+      });
+    });
+
+    exportMp3Btn.addEventListener('click', () => {
+      if (!isReady) return window.appAlert('请先加载音色库！', '提示');
+      if (playing) return;
+
+      Dialog.prompt('请输入导出的 MP3 文件名:', 'music', '导出 MP3').then((input) => {
+        if (input === null || input.trim() === '') return;
+        const finalName = input.trim().endsWith('.mp3') ? input.trim() : input.trim() + '.mp3';
+        window.pendingExportName = finalName;
+        
+        exportMp3Btn.classList.add('exporting');
+        exportMp3Btn.textContent = '正在录制 MP3...';
+        playBtn.disabled = true;
+        previewPlayBtn.disabled = true;
+        play('mp3', 0);
+      });
+    });
+  }
+
+  /* ============================================================
+   * 启动
+   * ============================================================ */
+
+  window.saveAsAction = function () {
+    App.saveAsAction();
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    Dialog.init();
+    Theme.init();
+    Layout.init();
+    Help.init();
+    initWelcomeModal();
+    App.init();
+    initExportButtons();
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{
+  "name": "resonor",
+  "version": "0.1.0",
+  "description": "A minimalist text-based music sequencer",
+  "author": "一只饿龙咧",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.yourname.resonor",
+    "productName": "Resonor",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "bundle.js",
+      "icon.ico",
+      "icon.png",
+      "lame.min.js",
+      "spessasynth_core.js",
+      "spessasynth_processor.min.js",
+      "default.sf2",
+      "www/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "build/installer.nsh"
+    },
+    "fileAssociations": [
+      {
+        "ext": "reson",
+        "name": "Resonor Project",
+        "description": "Resonor 编曲工程文件",
+        "role": "Editor"
+      }
+    ]
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "dockview": "^8.8.3"
+  }
+}
